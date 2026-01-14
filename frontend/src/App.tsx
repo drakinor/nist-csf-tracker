@@ -1,50 +1,72 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { FileText, Shield, CheckCircle, AlertTriangle, Home } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import './App.css';
 import Dashboard from './pages/Dashboard';
 import Artifacts from './pages/Artifacts';
 import Controls from './pages/Controls';
 import ControlDetail from './pages/ControlDetail';
 import ValidationQueue from './pages/ValidationQueue';
-import './App.css';
+import GapAnalysis from './pages/GapAnalysis';
 
 function App() {
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : true;
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
   return (
     <Router>
-      <div className="app">
-        <nav className="navbar">
-          <div className="container">
-            <div className="nav-brand">
-              <Shield size={28} />
-              <span>NIST CSF Tracker</span>
-            </div>
-            <div className="nav-links">
-              <Link to="/" className="nav-link">
-                <Home size={18} />
-                Dashboard
-              </Link>
-              <Link to="/artifacts" className="nav-link">
-                <FileText size={18} />
-                Artifacts
-              </Link>
-              <Link to="/controls" className="nav-link">
-                <CheckCircle size={18} />
-                Controls
-              </Link>
-              <Link to="/validation" className="nav-link">
-                <AlertTriangle size={18} />
-                Validation Queue
-              </Link>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <header style={{
+          background: '#2c3e50',
+          color: 'white',
+          padding: '1rem 2rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto' }}>
+            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>NIST CSF Tracker</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: 'white',
+                  borderRadius: '4px'
+                }}
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <nav style={{ display: 'flex', gap: '2rem' }}>
+                <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>Dashboard</Link>
+                <Link to="/artifacts" style={{ color: 'white', textDecoration: 'none' }}>Artifacts</Link>
+                <Link to="/controls" style={{ color: 'white', textDecoration: 'none' }}>Controls</Link>
+                <Link to="/validation" style={{ color: 'white', textDecoration: 'none' }}>Validation Queue</Link>
+                <Link to="/gaps" style={{ color: 'white', textDecoration: 'none' }}>Gap Analysis</Link>
+              </nav>
             </div>
           </div>
-        </nav>
+        </header>
 
-        <main className="main-content">
+        <main style={{ flex: 1, padding: '2rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/artifacts" element={<Artifacts />} />
             <Route path="/controls" element={<Controls />} />
             <Route path="/controls/:id" element={<ControlDetail />} />
             <Route path="/validation" element={<ValidationQueue />} />
+            <Route path="/gaps" element={<GapAnalysis />} />
           </Routes>
         </main>
       </div>

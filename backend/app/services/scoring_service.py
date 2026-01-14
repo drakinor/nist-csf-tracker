@@ -1,39 +1,67 @@
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 from sqlmodel import Session, select, func
-from app.models import Control, Evidence, Score, ScoreEvent
+from app.models import Control, Evidence, Score, ScoreEvent, Gap, EvidenceControlLink
 
 
 class ScoringService:
-    """Service for calculating and managing control scores."""
-    
-    # Score mapping
+    """
+    Service for calculating and managing control scores.
+
+    SPEC COMPLIANCE:
+    - Scores are DETERMINISTIC (0.0, 0.33, 0.66, 1.0 only)
+    - Evidence MUST be human-validated (status=accepted)
+    - Policy-only evidence CANNOT score 1.0
+    - Full score requires: policy + procedure AND (technical OR operational)
+    - Scores include rationale
+    - Supports linked evidence (many-to-many via EvidenceControlLink)
+    """
+
+    # Score mapping (NIST CSF spec compliant)
     SCORE_MAP = {
         "none": 0.0,
         "partial": 0.33,
         "mostly": 0.66,
         "full": 1.0
     }
-    
+
     def __init__(self, session: Session):
         self.session = session
-    
+
     def calculate_control_score(self, control_id: int) -> Score:
-        """Calculate score for a single control based on evidence."""
-        # Get accepted evidence count by type
-        statement = select(Evidence).where(
+        """
+        Calculate score for a single control based on ACCEPTED evidence only.
+        Scoring is deterministic and follows NIST CSF spec rules.
+        Includes both primary evidence (control_id) and linked evidence (via junction table).
+        """
+        # Get ONLY accepted primary evidence
+        primary_statement = select(Evidence).where(
             Evidence.control_id == control_id,
             Evidence.status == "accepted"
         )
-        evidence_list = self.session.exec(statement).all()
-        
-        # Determine score based on evidence
-        new_score_value, new_score_label = self._determine_score(evidence_list)
-        
+        primary_evidence = self.session.exec(primary_statement).all()
+
+        # Get ONLY accepted linked evidence
+        linked_statement = (
+            select(Evidence)
+            .join(EvidenceControlLink, Evidence.id == EvidenceControlLink.evidence_id)
+            .where(
+                EvidenceControlLink.control_id == control_id,
+                Evidence.status == "accepted"
+            )
+        )
+        linked_evidence = self.session.exec(linked_statement).all()
+
+        # Combine both primary and linked evidence for scoring
+        all_evidence = list(primary_evidence) + list(linked_evidence)
+
+        # Determine score based on evidence diversity
+        new_score_value, new_score_label, rationale = self._determine_score(all_evidence)
+
         # Get or create score record
         score_statement = select(Score).where(Score.control_id == control_id)
         score = self.session.exec(score_statement).first()
-        
+
         if score:
             # Record change if different
             if score.score_value != new_score_value:
@@ -43,13 +71,14 @@ class ScoringService:
                     new_score=new_score_value,
                     old_label=score.score_label,
                     new_label=new_score_label,
-                    reason="Evidence validation update"
+                    reason=f"Evidence validation update: {rationale}"
                 )
                 self.session.add(event)
-            
+
             # Update score
             score.score_value = new_score_value
             score.score_label = new_score_label
+            score.score_rationale = rationale
             score.calculated_at = datetime.utcnow()
         else:
             # Create new score
@@ -57,154 +86,281 @@ class ScoringService:
                 control_id=control_id,
                 score_value=new_score_value,
                 score_label=new_score_label,
+                score_rationale=rationale,
                 method="auto"
             )
             self.session.add(score)
-        
+
         self.session.commit()
         self.session.refresh(score)
-        
+
+        # Generate gaps based on score
+        self._generate_gaps(control_id, new_score_value, all_evidence)
+
         return score
-    
-    def _determine_score(self, evidence_list: list) -> tuple[float, str]:
-        """Determine score based on evidence characteristics."""
+
+    def _determine_score(self, evidence_list: List[Evidence]) -> tuple[float, str, str]:
+        """
+        Determine score based on evidence characteristics.
+
+        SPEC RULES:
+        - No evidence = 0.0 (missing_control)
+        - Policy only = 0.33 (missing_procedure or missing_technical)
+        - Policy + Procedure = 0.66 (missing_technical/operational)
+        - Policy + Procedure + (Technical OR Operational) = 1.0
+        - Assessment evidence strengthens confidence but doesn't replace implementation
+
+        Returns: (score_value, score_label, rationale)
+        """
         if not evidence_list:
-            return self.SCORE_MAP["none"], "none"
-        
+            return self.SCORE_MAP["none"], "none", "No validated evidence"
+
         # Count evidence by type
-        evidence_types = {}
-        for evidence in evidence_list:
-            etype = evidence.evidence_type or "untyped"
-            evidence_types[etype] = evidence_types.get(etype, 0) + 1
-        
-        # Scoring heuristics
-        has_policy = evidence_types.get("policy", 0) > 0
-        has_procedure = evidence_types.get("procedure", 0) > 0
-        has_technical = evidence_types.get("technical", 0) > 0
-        has_operational = evidence_types.get("operational", 0) > 0
-        
-        total_evidence = len(evidence_list)
-        
-        # Full implementation: multiple evidence types
-        if sum([has_policy, has_procedure, has_technical, has_operational]) >= 3:
-            return self.SCORE_MAP["full"], "full"
-        
-        # Mostly implemented: 2 evidence types or substantial evidence
-        if sum([has_policy, has_procedure, has_technical, has_operational]) >= 2:
-            return self.SCORE_MAP["mostly"], "mostly"
-        
-        # Partial: single evidence type or minimal evidence
-        if total_evidence >= 2:
-            return self.SCORE_MAP["mostly"], "mostly"
-        
-        return self.SCORE_MAP["partial"], "partial"
-    
-    def recalculate_all_scores(self) -> Dict[str, int]:
-        """Recalculate scores for all controls."""
-        statement = select(Control)
-        controls = self.session.exec(statement).all()
-        
-        updated = 0
-        for control in controls:
-            self.calculate_control_score(control.id)
-            updated += 1
-        
-        return {"updated": updated, "total": len(controls)}
-    
-    def get_overall_score(self) -> Dict[str, Any]:
-        """Get overall compliance score."""
-        statement = select(Score)
-        scores = self.session.exec(statement).all()
-        
-        if not scores:
+        evidence_types = {e.evidence_type for e in evidence_list if e.evidence_type}
+
+        has_policy = "policy" in evidence_types
+        has_procedure = "procedure" in evidence_types
+        has_technical = "technical" in evidence_types
+        has_operational = "operational" in evidence_types
+        has_assessment = "assessment" in evidence_types
+
+        # Determine score based on NIST CSF spec logic
+        if has_policy and has_procedure and (has_technical or has_operational):
+            # Full implementation
+            rationale = "Policy, procedure, and "
+            if has_technical and has_operational:
+                rationale += "both technical and operational evidence"
+            elif has_technical:
+                rationale += "technical enforcement evidence"
+            else:
+                rationale += "operational evidence"
+            
+            if has_assessment:
+                rationale += " with assessment validation"
+            
+            return self.SCORE_MAP["full"], "full", rationale
+
+        elif has_policy and has_procedure:
+            # Policy and procedure but missing enforcement
+            rationale = "Policy and procedure documented"
+            if has_assessment:
+                rationale += " with assessment, but missing technical/operational enforcement"
+            else:
+                rationale += ", but missing technical/operational enforcement"
+            return self.SCORE_MAP["mostly"], "mostly", rationale
+
+        elif has_policy:
+            # Policy only - spec says this CANNOT score 1.0
+            rationale = "Policy documented only"
+            if has_procedure:
+                rationale += " with procedures"
+            if has_assessment:
+                rationale += ", plus assessment"
+            rationale += ", but missing implementation evidence"
+            return self.SCORE_MAP["partial"], "partial", rationale
+
+        else:
+            # Some evidence but not comprehensive
+            types_found = ", ".join(evidence_types)
+            rationale = f"Partial evidence ({types_found}), but missing policy foundation"
+            return self.SCORE_MAP["partial"], "partial", rationale
+
+    def _generate_gaps(self, control_id: int, score_value: float, evidence_list: List[Evidence]):
+        """
+        Generate or update gaps based on current score and evidence.
+        Gaps are the inverse of the score - they identify what's missing.
+        """
+        evidence_types = {e.evidence_type for e in evidence_list if e.evidence_type}
+
+        # Define expected gaps based on score
+        expected_gaps = []
+
+        if score_value == 0.0:
+            # No evidence at all
+            expected_gaps.append({
+                "gap_type": "missing_control",
+                "description": "No validated evidence for this control",
+                "severity": "critical"
+            })
+        else:
+            # Check for missing evidence types
+            if "policy" not in evidence_types:
+                expected_gaps.append({
+                    "gap_type": "missing_policy",
+                    "description": "No policy documentation validated for this control",
+                    "severity": "high"
+                })
+            
+            if "procedure" not in evidence_types:
+                expected_gaps.append({
+                    "gap_type": "missing_procedure",
+                    "description": "No procedural documentation validated for this control",
+                    "severity": "high" if "policy" in evidence_types else "critical"
+                })
+            
+            if "technical" not in evidence_types:
+                expected_gaps.append({
+                    "gap_type": "missing_technical_enforcement",
+                    "description": "No technical enforcement mechanism validated for this control",
+                    "severity": "high"
+                })
+            
+            if "operational" not in evidence_types:
+                expected_gaps.append({
+                    "gap_type": "missing_operational_evidence",
+                    "description": "No operational evidence (logs, reports, assessments) validated for this control",
+                    "severity": "medium"
+                })
+            
+            # If we have some evidence but not full score
+            if score_value < 1.0 and len(evidence_types) > 0:
+                expected_gaps.append({
+                    "gap_type": "incomplete_implementation",
+                    "description": f"Control partially implemented: {', '.join(evidence_types)} present, but missing complete coverage",
+                    "severity": "medium" if score_value >= 0.66 else "high"
+                })
+
+        # Get existing gaps for this control
+        existing_gaps = self.session.exec(
+            select(Gap).where(
+                Gap.control_id == control_id,
+                Gap.status != "resolved"
+            )
+        ).all()
+
+        # Create a set of existing gap types
+        existing_gap_types = {g.gap_type for g in existing_gaps}
+
+        # Add new gaps
+        for gap_data in expected_gaps:
+            if gap_data["gap_type"] not in existing_gap_types:
+                new_gap = Gap(
+                    control_id=control_id,
+                    gap_type=gap_data["gap_type"],
+                    description=gap_data["description"],
+                    severity=gap_data["severity"],
+                    status="open"
+                )
+                self.session.add(new_gap)
+
+        # Resolve gaps that no longer apply
+        expected_gap_types = {g["gap_type"] for g in expected_gaps}
+        for gap in existing_gaps:
+            if gap.gap_type not in expected_gap_types and gap.status == "open":
+                gap.status = "resolved"
+                gap.resolved_at = datetime.utcnow()
+
+        self.session.commit()
+
+    def calculate_function_score(self, function_name: str) -> Dict[str, Any]:
+        """Calculate aggregate score for a NIST CSF function."""
+        statement = (
+            select(Control, Score)
+            .join(Score, Control.id == Score.control_id, isouter=True)
+            .where(Control.function == function_name)
+        )
+        results = self.session.exec(statement).all()
+
+        total_controls = len(results)
+        if total_controls == 0:
             return {
-                "average_score": 0.0,
+                "function": function_name,
                 "total_controls": 0,
-                "scored_controls": 0,
-                "percentage": 0.0
+                "avg_score": 0.0,
+                "score_label": "none"
             }
-        
-        total_score = sum(s.score_value for s in scores)
-        avg_score = total_score / len(scores) if scores else 0.0
-        
-        # Get total controls
-        control_count = self.session.exec(select(func.count(Control.id))).one()
-        
+
+        scores = [r[1].score_value if r[1] else 0.0 for r in results]
+        avg_score = sum(scores) / total_controls
+
+        # Map average to label
+        if avg_score >= 0.9:
+            score_label = "full"
+        elif avg_score >= 0.6:
+            score_label = "mostly"
+        elif avg_score >= 0.2:
+            score_label = "partial"
+        else:
+            score_label = "none"
+
         return {
-            "average_score": round(avg_score, 2),
-            "total_controls": control_count,
-            "scored_controls": len(scores),
-            "percentage": round(avg_score * 100, 1)
+            "function": function_name,
+            "total_controls": total_controls,
+            "avg_score": round(avg_score, 2),
+            "score_label": score_label
         }
-    
-    def get_function_rollups(self) -> list[Dict[str, Any]]:
-        """Get score rollups by function."""
-        statement = select(Control)
-        controls = self.session.exec(statement).all()
-        
-        # Group by function
-        functions = {}
-        for control in controls:
-            if control.function not in functions:
-                functions[control.function] = []
-            functions[control.function].append(control.id)
-        
-        # Calculate average score per function
-        results = []
-        for function, control_ids in functions.items():
-            scores = []
-            for cid in control_ids:
-                score_statement = select(Score).where(Score.control_id == cid)
-                score = self.session.exec(score_statement).first()
-                if score:
-                    scores.append(score.score_value)
-            
-            avg = sum(scores) / len(scores) if scores else 0.0
-            results.append({
-                "function": function,
-                "average_score": round(avg, 2),
-                "percentage": round(avg * 100, 1),
-                "total_controls": len(control_ids),
-                "scored_controls": len(scores)
-            })
-        
-        return sorted(results, key=lambda x: x["function"])
-    
-    def get_category_rollups(self) -> list[Dict[str, Any]]:
-        """Get score rollups by category."""
-        statement = select(Control)
-        controls = self.session.exec(statement).all()
-        
-        # Group by category
-        categories = {}
-        for control in controls:
-            if control.category not in categories:
-                categories[control.category] = []
-            categories[control.category].append(control.id)
-        
-        # Calculate average score per category
-        results = []
-        for category, control_ids in categories.items():
-            scores = []
-            for cid in control_ids:
-                score_statement = select(Score).where(Score.control_id == cid)
-                score = self.session.exec(score_statement).first()
-                if score:
-                    scores.append(score.score_value)
-            
-            avg = sum(scores) / len(scores) if scores else 0.0
-            results.append({
-                "category": category,
-                "average_score": round(avg, 2),
-                "percentage": round(avg * 100, 1),
-                "total_controls": len(control_ids),
-                "scored_controls": len(scores)
-            })
-        
-        return sorted(results, key=lambda x: x["category"])
-    
-    def get_needs_validation_count(self) -> int:
-        """Get count of evidence items needing validation."""
-        statement = select(func.count(Evidence.id)).where(Evidence.status == "pending")
-        count = self.session.exec(statement).one()
-        return count
+
+    def calculate_category_score(self, category_name: str) -> Dict[str, Any]:
+        """Calculate aggregate score for a NIST CSF category."""
+        statement = (
+            select(Control, Score)
+            .join(Score, Control.id == Score.control_id, isouter=True)
+            .where(Control.category == category_name)
+        )
+        results = self.session.exec(statement).all()
+
+        total_controls = len(results)
+        if total_controls == 0:
+            return {
+                "category": category_name,
+                "total_controls": 0,
+                "avg_score": 0.0,
+                "score_label": "none"
+            }
+
+        scores = [r[1].score_value if r[1] else 0.0 for r in results]
+        avg_score = sum(scores) / total_controls
+
+        # Map average to label
+        if avg_score >= 0.9:
+            score_label = "full"
+        elif avg_score >= 0.6:
+            score_label = "mostly"
+        elif avg_score >= 0.2:
+            score_label = "partial"
+        else:
+            score_label = "none"
+
+        return {
+            "category": category_name,
+            "total_controls": total_controls,
+            "avg_score": round(avg_score, 2),
+            "score_label": score_label
+        }
+
+    def get_dashboard_summary(self) -> Dict[str, Any]:
+        """Get comprehensive dashboard metrics."""
+        # Get all controls with scores
+        statement = (
+            select(Control, Score)
+            .join(Score, Control.id == Score.control_id, isouter=True)
+        )
+        results = self.session.exec(statement).all()
+
+        total_controls = len(results)
+        scores = [r[1].score_value if r[1] else 0.0 for r in results]
+        overall_avg = sum(scores) / total_controls if total_controls > 0 else 0.0
+
+        # Count by score label
+        score_distribution = {
+            "full": sum(1 for s in scores if s >= 0.9),
+            "mostly": sum(1 for s in scores if 0.6 <= s < 0.9),
+            "partial": sum(1 for s in scores if 0.2 <= s < 0.6),
+            "none": sum(1 for s in scores if s < 0.2)
+        }
+
+        # Calculate function scores
+        functions = ["Identify", "Protect", "Detect", "Respond", "Recover"]
+        function_scores = []
+        for func in functions:
+            func_score = self.calculate_function_score(func)
+            if func_score["total_controls"] > 0:
+                function_scores.append(func_score)
+
+        return {
+            "total_controls": total_controls,
+            "overall_score": round(overall_avg, 2),
+            "score_distribution": score_distribution,
+            "function_scores": function_scores,
+            "last_updated": datetime.utcnow().isoformat()
+        }
