@@ -17,12 +17,12 @@ class ScoringService:
     - Supports linked evidence (many-to-many via EvidenceControlLink)
     """
 
-    # Score mapping (NIST CSF spec compliant)
+    # Score mapping (NIST Implementation Levels)
     SCORE_MAP = {
-        "none": 0.0,
-        "partial": 0.33,
-        "mostly": 0.66,
-        "full": 1.0
+        "not-implemented": 0.0,
+        "partially-implemented": 0.33,
+        "largely-implemented": 0.66,
+        "fully-implemented": 1.0
     }
 
     def __init__(self, session: Session):
@@ -113,7 +113,7 @@ class ScoringService:
         Returns: (score_value, score_label, rationale)
         """
         if not evidence_list:
-            return self.SCORE_MAP["none"], "none", "No validated evidence"
+            return self.SCORE_MAP["not-implemented"], "not-implemented", "No validated evidence"
 
         # Count evidence by type
         evidence_types = {e.evidence_type for e in evidence_list if e.evidence_type}
@@ -138,7 +138,7 @@ class ScoringService:
             if has_assessment:
                 rationale += " with assessment validation"
             
-            return self.SCORE_MAP["full"], "full", rationale
+            return self.SCORE_MAP["fully-implemented"], "fully-implemented", rationale
 
         elif has_policy and has_procedure:
             # Policy and procedure but missing enforcement
@@ -147,7 +147,7 @@ class ScoringService:
                 rationale += " with assessment, but missing technical/operational enforcement"
             else:
                 rationale += ", but missing technical/operational enforcement"
-            return self.SCORE_MAP["mostly"], "mostly", rationale
+            return self.SCORE_MAP["largely-implemented"], "largely-implemented", rationale
 
         elif has_policy:
             # Policy only - spec says this CANNOT score 1.0
@@ -157,13 +157,13 @@ class ScoringService:
             if has_assessment:
                 rationale += ", plus assessment"
             rationale += ", but missing implementation evidence"
-            return self.SCORE_MAP["partial"], "partial", rationale
+            return self.SCORE_MAP["partially-implemented"], "partially-implemented", rationale
 
         else:
             # Some evidence but not comprehensive
             types_found = ", ".join(evidence_types)
             rationale = f"Partial evidence ({types_found}), but missing policy foundation"
-            return self.SCORE_MAP["partial"], "partial", rationale
+            return self.SCORE_MAP["partially-implemented"], "partially-implemented", rationale
 
     def _generate_gaps(self, control_id: int, score_value: float, evidence_list: List[Evidence]):
         """
@@ -364,3 +364,81 @@ class ScoringService:
             "function_scores": function_scores,
             "last_updated": datetime.utcnow().isoformat()
         }
+
+    def get_overall_score(self) -> Dict[str, Any]:
+        """Get overall score across all controls."""
+        statement = select(Control, Score).join(Score, Control.id == Score.control_id, isouter=True)
+        results = self.session.exec(statement).all()
+        
+        total_controls = len(results)
+        if total_controls == 0:
+            return {"average_score": 0.0, "total_controls": 0, "controls_with_evidence": 0}
+        
+        scores = [r[1].score_value if r[1] else 0.0 for r in results]
+        controls_with_scores = sum(1 for r in results if r[1])
+        
+        return {
+            "average_score": round(sum(scores) / total_controls, 2),
+            "total_controls": total_controls,
+            "controls_with_evidence": controls_with_scores
+        }
+    
+    def get_function_rollups(self) -> List[Dict[str, Any]]:
+        """Get score rollups by NIST CSF function."""
+        functions = ["Govern", "Identify", "Protect", "Detect", "Respond", "Recover"]
+        rollups = []
+        
+        for func in functions:
+            statement = (
+                select(Control, Score)
+                .join(Score, Control.id == Score.control_id, isouter=True)
+                .where(Control.function == func)
+            )
+            results = self.session.exec(statement).all()
+            
+            if results:
+                total_controls = len(results)
+                scores = [r[1].score_value if r[1] else 0.0 for r in results]
+                avg_score = sum(scores) / total_controls
+                
+                rollups.append({
+                    "function": func,
+                    "average_score": round(avg_score, 2),
+                    "total_controls": total_controls,
+                    "controls_with_evidence": sum(1 for r in results if r[1])
+                })
+        
+        return rollups
+    
+    def get_category_rollups(self) -> List[Dict[str, Any]]:
+        """Get score rollups by NIST CSF category."""
+        statement = select(Control.category).distinct()
+        categories = self.session.exec(statement).all()
+        
+        rollups = []
+        for category in categories:
+            cat_statement = (
+                select(Control, Score)
+                .join(Score, Control.id == Score.control_id, isouter=True)
+                .where(Control.category == category)
+            )
+            results = self.session.exec(cat_statement).all()
+            
+            if results:
+                total_controls = len(results)
+                scores = [r[1].score_value if r[1] else 0.0 for r in results]
+                avg_score = sum(scores) / total_controls
+                
+                rollups.append({
+                    "category": category,
+                    "average_score": round(avg_score, 2),
+                    "total_controls": total_controls,
+                    "controls_with_evidence": sum(1 for r in results if r[1])
+                })
+        
+        return sorted(rollups, key=lambda x: x["category"])
+    
+    def get_needs_validation_count(self) -> int:
+        """Count evidence items needing validation."""
+        statement = select(func.count()).select_from(Evidence).where(Evidence.status == "pending")
+        return self.session.exec(statement).one()

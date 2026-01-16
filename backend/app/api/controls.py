@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Control, Evidence, Score
 from app.services.candidate_service import CandidateService
+from app.services.ollama_service import OllamaService
 
 router = APIRouter()
 
@@ -112,3 +113,47 @@ async def get_categories_summary(
     
     scoring_service = ScoringService(session)
     return scoring_service.get_category_rollups()
+
+@router.post("/{control_id}/ai-analyze-candidate")
+async def ai_analyze_candidate(
+    control_id: int,
+    candidate_id: int = Query(..., description="Chunk ID of the candidate"),
+    session: Session = Depends(get_session)
+):
+    """Use local Ollama AI to analyze if a candidate is relevant evidence."""
+    from app.models import ArtifactChunk
+    
+    # Get control
+    control = session.get(Control, control_id)
+    if not control:
+        raise HTTPException(status_code=404, detail="Control not found")
+    
+    # Get candidate chunk
+    chunk = session.get(ArtifactChunk, candidate_id)
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Candidate chunk not found")
+    
+    # Analyze with Ollama
+    ollama = OllamaService()
+    
+    if not ollama.is_available():
+        raise HTTPException(
+            status_code=503, 
+            detail="Ollama AI not available. Make sure Ollama is running on localhost:11434"
+        )
+    
+    analysis = ollama.analyze_evidence_candidate(
+        control_id=control.csf_id,
+        control_name=control.name,
+        control_text=control.text,
+        candidate_text=chunk.chunk_text
+    )
+    
+    if "error" in analysis:
+        raise HTTPException(status_code=500, detail=analysis["error"])
+    
+    return {
+        "control_id": control_id,
+        "candidate_id": candidate_id,
+        "analysis": analysis
+    }

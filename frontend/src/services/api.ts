@@ -106,23 +106,32 @@ export interface Candidate {
   artifact_title: string;
   match_score: number;
   snippet_text: string;
+  full_text?: string;
   locator_json: any;
+  match_reasons?: string[];
+  is_existing_evidence?: boolean;
 }
 
 export const artifactApi = {
   list: () => api.get<Artifact[]>('/artifacts/'),
   get: (id: number) => api.get<Artifact>(`/artifacts/${id}`),
-  upload: (formData: FormData) => {
+  upload: (file: File, tags: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('tags', tags);
     return api.post('/artifacts/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  ingestUrl: (url: string, title: string) => {
+  ingestUrl: (url: string, tags: string) => {
     const formData = new FormData();
     formData.append('url', url);
-    formData.append('title', title);
-    return api.post('/artifacts/ingest-url', formData);
+    formData.append('tags', tags);
+    return api.post('/artifacts/ingest-url', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
+  getChunks: (id: number) => api.get(`/artifacts/${id}/chunks`),
   delete: (id: number) => api.delete(`/artifacts/${id}`),
 };
 
@@ -140,6 +149,8 @@ export const controlApi = {
   getFunctionsSummary: () => api.get('/controls/functions/summary'),
   getCategoriesSummary: () => api.get('/controls/categories/summary'),
   getLinkedEvidence: (id: number) => api.get<{ primary: Evidence[]; linked: LinkedEvidence[] }>(`/controls/${id}/linked-evidence`),
+  aiAnalyzeCandidate: (controlId: number, candidateId: number) => 
+    api.post(`/controls/${controlId}/ai-analyze-candidate?candidate_id=${candidateId}`),
 };
 
 export const evidenceApi = {

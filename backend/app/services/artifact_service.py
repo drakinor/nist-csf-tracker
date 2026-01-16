@@ -57,51 +57,80 @@ class ArtifactService:
         return artifact
     
     async def ingest_url(self, url: str, tags: Optional[str] = None) -> Artifact:
-        """Fetch URL content and create a local snapshot."""
+        """Fetch URL content and create a local snapshot. Supports HTML pages and PDFs."""
         # Fetch URL
         response = requests.get(url, timeout=30, headers={
             'User-Agent': 'NIST-CSF-Tracker/1.0'
         })
         response.raise_for_status()
         
-        # Extract main content using readability
-        doc = Document(response.text)
-        title = doc.title()
-        html_content = doc.summary()
+        # Check content type
+        content_type = response.headers.get('content-type', '').lower()
         
-        # Parse with BeautifulSoup to get clean text
-        soup = BeautifulSoup(html_content, 'html.parser')
-        text_content = soup.get_text(separator='\n', strip=True)
-        
-        # Create hash
-        content_hash = hashlib.sha256(text_content.encode()).hexdigest()
-        
-        # Save HTML snapshot
-        snapshot_filename = f"{content_hash}.html"
-        snapshot_path = self.artifacts_path / snapshot_filename
-        
-        with open(snapshot_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-        
-        # Also save plain text version
-        text_filename = f"{content_hash}.txt"
-        text_path = self.artifacts_path / text_filename
-        
-        with open(text_path, "w", encoding="utf-8") as f:
-            f.write(text_content)
-        
-        # Create artifact record
-        artifact = Artifact(
-            title=title or url,
-            type="url",
-            source_path=str(text_path),
-            source_url=url,
-            collected_at=datetime.utcnow(),
-            hash=content_hash,
-            tags=tags,
-            file_size=len(text_content),
-            metadata_json={"snapshot_html": str(snapshot_path)}
-        )
+        if 'application/pdf' in content_type or url.lower().endswith('.pdf'):
+            # Handle PDF
+            content = response.content
+            content_hash = hashlib.sha256(content).hexdigest()
+            
+            # Save PDF file
+            pdf_filename = f"{content_hash}.pdf"
+            pdf_path = self.artifacts_path / pdf_filename
+            
+            with open(pdf_path, "wb") as f:
+                f.write(content)
+            
+            # Extract title from URL
+            title = url.split('/')[-1] or "Downloaded PDF"
+            
+            artifact = Artifact(
+                title=title,
+                type="pdf",
+                source_path=str(pdf_path),
+                source_url=url,
+                collected_at=datetime.utcnow(),
+                hash=content_hash,
+                tags=tags,
+                file_size=len(content)
+            )
+        else:
+            # Handle HTML
+            # Extract main content using readability
+            doc = Document(response.text)
+            title = doc.title()
+            html_content = doc.summary()
+            
+            # Parse with BeautifulSoup to get clean text
+            soup = BeautifulSoup(html_content, 'html.parser')
+            text_content = soup.get_text(separator='\n', strip=True)
+            
+            # Create hash
+            content_hash = hashlib.sha256(text_content.encode()).hexdigest()
+            
+            # Save HTML snapshot
+            snapshot_filename = f"{content_hash}.html"
+            snapshot_path = self.artifacts_path / snapshot_filename
+            
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            
+            # Also save plain text version
+            text_filename = f"{content_hash}.txt"
+            text_path = self.artifacts_path / text_filename
+            
+            with open(text_path, "w", encoding="utf-8") as f:
+                f.write(text_content)
+            
+            artifact = Artifact(
+                title=title or url,
+                type="url",
+                source_path=str(text_path),
+                source_url=url,
+                collected_at=datetime.utcnow(),
+                hash=content_hash,
+                tags=tags,
+                file_size=len(text_content),
+                metadata_json={"snapshot_html": str(snapshot_path)}
+            )
         
         self.session.add(artifact)
         self.session.commit()

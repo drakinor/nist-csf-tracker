@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tantml:function_calls>tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, XCircle, AlertTriangle, Filter, ArrowUpDown, Trash2, CheckSquare, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { evidenceApi, controlApi } from '../services/api';
@@ -327,7 +327,7 @@ export default function ValidationQueue() {
                                 {control?.csf_id} - {control?.name}
                               </strong>
                             </Link>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#666666', marginTop: '0.25rem' }}>
                               {control?.function} / {control?.category}
                             </div>
                           </div>
@@ -429,7 +429,7 @@ export default function ValidationQueue() {
                         {evidence.status !== 'pending' && evidence.notes && (
                           <div style={{ 
                             fontSize: '0.875rem', 
-                            color: 'var(--text-muted)',
+                            color: '#666666',
                             marginTop: '0.5rem',
                             fontStyle: 'italic'
                           }}>

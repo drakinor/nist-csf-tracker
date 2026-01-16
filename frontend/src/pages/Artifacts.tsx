@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Upload, Link as LinkIcon, FileText, Trash2, Eye } from 'lucide-react';
+import { Upload, Link as LinkIcon, FileText, Trash2, Eye, Type } from 'lucide-react';
 import { artifactApi, type Artifact } from '../services/api';
 
 export default function Artifacts() {
   const [showUpload, setShowUpload] = useState(false);
   const [showUrlIngest, setShowUrlIngest] = useState(false);
+  const [showPasteText, setShowPasteText] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [url, setUrl] = useState('');
+  const [pastedText, setPastedText] = useState('');
+  const [textTitle, setTextTitle] = useState('');
   const [tags, setTags] = useState('');
   const [viewingChunks, setViewingChunks] = useState<number | null>(null);
 
@@ -38,6 +41,10 @@ export default function Artifacts() {
       setUrl('');
       setTags('');
     },
+    onError: (error: any) => {
+      console.error("URL Ingest failed:", error);
+      alert(`Failed to ingest URL: ${error.response?.data?.detail || error.message}`);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -60,6 +67,7 @@ export default function Artifacts() {
   };
 
   const handleUrlIngest = () => {
+    console.log("Ingest clicked", { url, tags });
     if (url) {
       urlMutation.mutate({ url, tags });
     }
@@ -95,11 +103,20 @@ export default function Artifacts() {
           <div className="flex gap-2">
             <button
               className="btn btn-secondary"
+              onClick={() => setShowPasteText(!showPasteText)}
+            >
+              <Type size={18} />
+              Paste Text
+            </button>
+            {/* URL Ingest disabled - PDFs blocked by ASR, use Paste Text instead
+            <button
+              className="btn btn-secondary"
               onClick={() => setShowUrlIngest(!showUrlIngest)}
             >
               <LinkIcon size={18} />
               Ingest URL
             </button>
+            */}
             <button
               className="btn btn-primary"
               onClick={() => setShowUpload(!showUpload)}
@@ -116,16 +133,29 @@ export default function Artifacts() {
         <div className="card mb-3">
           <h3 className="mb-2">Upload Artifact</h3>
           <div className="mb-2">
-            <label className="text-sm text-muted">File</label>
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>File</label>
             <input
               type="file"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
               accept=".docx,.pdf,.txt,.md,.xlsx"
-              style={{ display: 'block', marginTop: '0.5rem' }}
+              style={{ 
+                display: 'block', 
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                width: '100%',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a'
+              }}
             />
+            {selectedFile && (
+              <div className="text-sm mt-1" style={{ color: '#10b981' }}>
+                Selected: {selectedFile.name}
+              </div>
+            )}
           </div>
           <div className="mb-2">
-            <label className="text-sm text-muted">Tags (comma-separated)</label>
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>Tags (comma-separated)</label>
             <input
               type="text"
               value={tags}
@@ -134,13 +164,14 @@ export default function Artifacts() {
               style={{
                 width: '100%',
                 padding: '0.5rem',
-                border: '1px solid #e5e7eb',
+                border: '1px solid #d1d5db',
                 borderRadius: '6px',
-                marginTop: '0.5rem',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a'
               }}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-3">
             <button
               className="btn btn-primary"
               onClick={handleUpload}
@@ -150,7 +181,102 @@ export default function Artifacts() {
             </button>
             <button
               className="btn btn-secondary"
-              onClick={() => setShowUpload(false)}
+              onClick={() => {
+                setShowUpload(false);
+                setSelectedFile(null);
+                setTags('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paste Text Form */}
+      {showPasteText && (
+        <div className="card mb-3">
+          <h3 className="mb-2">Paste Text</h3>
+          <div className="mb-2">
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>Title</label>
+            <input
+              type="text"
+              value={textTitle}
+              onChange={(e) => setTextTitle(e.target.value)}
+              placeholder="e.g., Board Policy 219 - Student Technology Use"
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a'
+              }}
+            />
+          </div>
+          <div className="mb-2">
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>Paste Text Content</label>
+            <textarea
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              placeholder="Paste your policy or document text here...\n\nTip: Copy text from PDF viewers, web pages, or Word documents."
+              rows={10}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a',
+                fontFamily: 'monospace',
+                fontSize: '0.875rem'
+              }}
+            />
+          </div>
+          <div className="mb-2">
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>Tags (comma-separated)</label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g., policy, board-approved, technology"
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a'
+              }}
+            />
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (pastedText && textTitle) {
+                  // Create a text file from pasted content
+                  const blob = new Blob([pastedText], { type: 'text/plain' });
+                  const file = new File([blob], `${textTitle.replace(/[^a-z0-9]/gi, '_')}.txt`, { type: 'text/plain' });
+                  uploadMutation.mutate({ file, tags });
+                  setPastedText('');
+                  setTextTitle('');
+                  setTags('');
+                  setShowPasteText(false);
+                }
+              }}
+              disabled={!pastedText || !textTitle || uploadMutation.isPending}
+            >
+              {uploadMutation.isPending ? 'Saving...' : 'Save Text'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowPasteText(false);
+                setPastedText('');
+                setTextTitle('');
+                setTags('');
+              }}
             >
               Cancel
             </button>
@@ -163,7 +289,7 @@ export default function Artifacts() {
         <div className="card mb-3">
           <h3 className="mb-2">Ingest URL</h3>
           <div className="mb-2">
-            <label className="text-sm text-muted">URL</label>
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>URL</label>
             <input
               type="url"
               value={url}
@@ -172,14 +298,15 @@ export default function Artifacts() {
               style={{
                 width: '100%',
                 padding: '0.5rem',
-                border: '1px solid #e5e7eb',
+                border: '1px solid #d1d5db',
                 borderRadius: '6px',
-                marginTop: '0.5rem',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a'
               }}
             />
           </div>
           <div className="mb-2">
-            <label className="text-sm text-muted">Tags (comma-separated)</label>
+            <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', color: '#666666', fontWeight: 500 }}>Tags (comma-separated)</label>
             <input
               type="text"
               value={tags}
@@ -188,13 +315,14 @@ export default function Artifacts() {
               style={{
                 width: '100%',
                 padding: '0.5rem',
-                border: '1px solid #e5e7eb',
+                border: '1px solid #d1d5db',
                 borderRadius: '6px',
-                marginTop: '0.5rem',
+                backgroundColor: '#ffffff',
+                color: '#1a1a1a'
               }}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-3">
             <button
               className="btn btn-primary"
               onClick={handleUrlIngest}
@@ -204,7 +332,11 @@ export default function Artifacts() {
             </button>
             <button
               className="btn btn-secondary"
-              onClick={() => setShowUrlIngest(false)}
+              onClick={() => {
+                setShowUrlIngest(false);
+                setUrl('');
+                setTags('');
+              }}
             >
               Cancel
             </button>
@@ -237,7 +369,7 @@ export default function Artifacts() {
                       <strong>{artifact.title}</strong>
                     </div>
                     {artifact.source_url && (
-                      <div className="text-xs text-muted mt-1">
+                      <div className="text-xs mt-1" style={{ color: '#666666' }}>
                         {artifact.source_url}
                       </div>
                     )}
@@ -247,13 +379,13 @@ export default function Artifacts() {
                       {artifact.type.toUpperCase()}
                     </span>
                   </td>
-                  <td className="text-sm text-muted">
+                  <td className="text-sm" style={{ color: '#666666' }}>
                     {formatFileSize(artifact.file_size)}
                   </td>
-                  <td className="text-sm text-muted">
+                  <td className="text-sm" style={{ color: '#666666' }}>
                     {formatDate(artifact.collected_at)}
                   </td>
-                  <td className="text-sm text-muted">
+                  <td className="text-sm" style={{ color: '#666666' }}>
                     {artifact.tags || '-'}
                   </td>
                   <td>
@@ -331,10 +463,10 @@ export default function Artifacts() {
                   marginBottom: '1rem',
                 }}
               >
-                <div className="text-xs text-muted mb-1">
+                <div className="text-xs mb-1" style={{ color: '#666666' }}>
                   Chunk #{idx + 1} | {JSON.stringify(chunk.locator_json)}
                 </div>
-                <div className="text-sm">{chunk.chunk_text.substring(0, 500)}...</div>
+                <div className="text-sm" style={{ color: '#1a1a1a' }}>{chunk.chunk_text.substring(0, 500)}...</div>
               </div>
             ))}
           </div>

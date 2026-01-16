@@ -1,0 +1,70 @@
+CYBERSECURITY POLICY DOCUMENT
+Organization: Test Company
+Date: January 15, 2026
+
+GOVERNANCE STRUCTURE (GV.OC)
+
+Our organization has established a comprehensive cybersecurity governance program aligned with the NIST Cybersecurity Framework. This document outlines our key governance and oversight mechanisms.
+
+1. ORGANIZATIONAL CONTEXT (GV.OC-01)
+The organization's cybersecurity objectives are clearly defined and communicated to all stakeholders. We maintain an understanding of how cybersecurity risks relate to our business objectives and strategic priorities.
+
+2. RISK MANAGEMENT STRATEGY (GV.RM)
+We have implemented a risk management strategy (GV.RM-01) that guides our approach to identifying, assessing, and responding to cybersecurity risks. This strategy is reviewed annually and updated based on changes in the threat landscape and business environment.
+
+3. ROLES AND RESPONSIBILITIES (GV.OC-02)
+Cybersecurity roles and responsibilities are clearly defined across all organizational levels. The CISO reports directly to the CEO and has authority to implement security controls.
+
+ASSET MANAGEMENT (ID.AM)
+
+4. ASSET INVENTORY (ID.AM-01)
+We maintain a comprehensive inventory of all physical devices and systems within our organization. This inventory is updated quarterly and includes:
+- Servers and network equipment
+- Workstations and laptops
+- Mobile devices
+- IoT devices
+- Critical infrastructure components
+
+All assets are tagged with unique identifiers and tracked in our CMDB system.
+
+5. SOFTWARE PLATFORM INVENTORY (ID.AM-02)
+Software platforms and applications are inventoried with version information, license details, and business owners assigned. We track both commercial and internally developed applications.
+
+IDENTITY MANAGEMENT AND ACCESS CONTROL (PR.AC)
+
+6. ACCESS CONTROL POLICIES (PR.AC-01)
+Identities and credentials are issued, managed, verified, revoked, and audited for authorized devices, users, and processes. We implement:
+- Multi-factor authentication (MFA) for all privileged accounts
+- Role-based access control (RBAC)
+- Regular access reviews conducted quarterly
+- Automated deprovisioning for terminated employees
+
+7. PHYSICAL ACCESS CONTROLS (PR.AC-02)
+Physical access to assets is managed and protected through badge systems, security cameras, and visitor management protocols.
+
+CONTINUOUS MONITORING (DE.CM)
+
+8. NETWORK MONITORING (DE.CM-01)
+Networks and network services are monitored to find potentially adverse events. We utilize:
+- SIEM system for security event correlation
+- IDS/IPS for intrusion detection and prevention
+- Network traffic analysis tools
+- 24/7 SOC monitoring
+
+9. ANOMALY DETECTION (DE.CM-03)
+Personnel activity and technology usage are monitored to find potentially adverse events. We implement user behavior analytics (UBA) to detect anomalous activities.
+
+INCIDENT RESPONSE (RS.AN)
+
+10. INCIDENT ANALYSIS (RS.AN-01)
+Notifications from detection systems are investigated and analyzed to ensure effective response. Our incident response team follows a documented playbook for categorizing and prioritizing incidents.
+
+11. INCIDENT IMPACT ANALYSIS (RS.AN-02)
+The impact of incidents is understood, and incident data is used to improve our security posture.
+
+RECOVERY PLANNING (RC.RP)
+
+12. RECOVERY PROCEDURES (RC.RP-01)
+Recovery processes and procedures are executed and maintained to ensure restoration of systems and services affected by cybersecurity incidents. We conduct quarterly disaster recovery tests.
+
+This policy is approved by executive leadership and reviewed annually.

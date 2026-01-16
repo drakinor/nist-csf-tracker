@@ -8,13 +8,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlmodel import Session, select
-from database import engine
-from models import Control
+from app.database import engine
+from app.models import Control
 
 CSF_CONTROLS = [
     # Govern Function (NEW in CSF 2.0)
     {
-        "csf_id": "GV.OC-1",`n        "subcategory": "GV.OC-1",
+        "csf_id": "GV.OC-1",
+        "subcategory": "GV.OC-1",
         "function": "Govern",
         "category": "GV.OC",
         "name": "Organizational Context",
@@ -22,7 +23,8 @@ CSF_CONTROLS = [
         "keywords": "mission, objectives, stakeholders, organizational context, risk management strategy"
     },
     {
-        "csf_id": "GV.RM-1",`n        "subcategory": "GV.RM-1",
+        "csf_id": "GV.RM-1",
+        "subcategory": "GV.RM-1",
         "function": "Govern",
         "category": "GV.RM",
         "name": "Risk Management Strategy",
@@ -30,7 +32,8 @@ CSF_CONTROLS = [
         "keywords": "risk strategy, risk objectives, risk appetite, risk tolerance, stakeholder agreement"
     },
     {
-        "csf_id": "GV.RR-1",`n        "subcategory": "GV.RR-1",
+        "csf_id": "GV.RR-1",
+        "subcategory": "GV.RR-1",
         "function": "Govern",
         "category": "GV.RR",
         "name": "Roles and Responsibilities",
@@ -38,7 +41,8 @@ CSF_CONTROLS = [
         "keywords": "roles, responsibilities, authority, accountability, RACI, organizational structure"
     },
     {
-        "csf_id": "GV.PO-1",`n        "subcategory": "GV.PO-1",
+        "csf_id": "GV.PO-1",
+        "subcategory": "GV.PO-1",
         "function": "Govern",
         "category": "GV.PO",
         "name": "Policy",
@@ -46,7 +50,8 @@ CSF_CONTROLS = [
         "keywords": "policy, cybersecurity policy, information security policy, acceptable use policy"
     },
     {
-        "csf_id": "GV.OV-1",`n        "subcategory": "GV.OV-1",
+        "csf_id": "GV.OV-1",
+        "subcategory": "GV.OV-1",
         "function": "Govern",
         "category": "GV.OV",
         "name": "Oversight",
@@ -56,7 +61,8 @@ CSF_CONTROLS = [
     
     # Identify Function
     {
-        "csf_id": "ID.AM-1",`n        "subcategory": "ID.AM-1",
+        "csf_id": "ID.AM-1",
+        "subcategory": "ID.AM-1",
         "function": "Identify",
         "category": "ID.AM",
         "name": "Asset Management",
@@ -64,7 +70,8 @@ CSF_CONTROLS = [
         "keywords": "asset inventory, hardware inventory, device inventory, configuration management database"
     },
     {
-        "csf_id": "ID.AM-2",`n        "subcategory": "ID.AM-2",
+        "csf_id": "ID.AM-2",
+        "subcategory": "ID.AM-2",
         "function": "Identify",
         "category": "ID.AM",
         "name": "Software Inventory",
@@ -72,7 +79,8 @@ CSF_CONTROLS = [
         "keywords": "software inventory, application inventory, license management"
     },
     {
-        "csf_id": "ID.RA-1",`n        "subcategory": "ID.RA-1",
+        "csf_id": "ID.RA-1",
+        "subcategory": "ID.RA-1",
         "function": "Identify",
         "category": "ID.RA",
         "name": "Risk Assessment",
@@ -80,7 +88,8 @@ CSF_CONTROLS = [
         "keywords": "vulnerability assessment, risk assessment, threat identification, vulnerability scanning"
     },
     {
-        "csf_id": "ID.RA-2",`n        "subcategory": "ID.RA-2",
+        "csf_id": "ID.RA-2",
+        "subcategory": "ID.RA-2",
         "function": "Identify",
         "category": "ID.RA",
         "name": "Threat Intelligence",
@@ -90,7 +99,8 @@ CSF_CONTROLS = [
     
     # Protect Function
     {
-        "csf_id": "PR.AC-1",`n        "subcategory": "PR.AC-1",
+        "csf_id": "PR.AC-1",
+        "subcategory": "PR.AC-1",
         "function": "Protect",
         "category": "PR.AC",
         "name": "Identity Management",
@@ -98,7 +108,8 @@ CSF_CONTROLS = [
         "keywords": "identity management, credential management, user provisioning, IAM"
     },
     {
-        "csf_id": "PR.AC-3",`n        "subcategory": "PR.AC-3",
+        "csf_id": "PR.AC-3",
+        "subcategory": "PR.AC-3",
         "function": "Protect",
         "category": "PR.AC",
         "name": "Access Control",
@@ -106,7 +117,8 @@ CSF_CONTROLS = [
         "keywords": "remote access, VPN, remote desktop, telecommuting, remote work"
     },
     {
-        "csf_id": "PR.AC-4",`n        "subcategory": "PR.AC-4",
+        "csf_id": "PR.AC-4",
+        "subcategory": "PR.AC-4",
         "function": "Protect",
         "category": "PR.AC",
         "name": "Access Permissions",
@@ -114,7 +126,8 @@ CSF_CONTROLS = [
         "keywords": "least privilege, separation of duties, access control, authorization, RBAC"
     },
     {
-        "csf_id": "PR.AT-1",`n        "subcategory": "PR.AT-1",
+        "csf_id": "PR.AT-1",
+        "subcategory": "PR.AT-1",
         "function": "Protect",
         "category": "PR.AT",
         "name": "Security Awareness",
@@ -122,7 +135,8 @@ CSF_CONTROLS = [
         "keywords": "security awareness, security training, user education, phishing training"
     },
     {
-        "csf_id": "PR.DS-1",`n        "subcategory": "PR.DS-1",
+        "csf_id": "PR.DS-1",
+        "subcategory": "PR.DS-1",
         "function": "Protect",
         "category": "PR.DS",
         "name": "Data at Rest",
@@ -130,7 +144,8 @@ CSF_CONTROLS = [
         "keywords": "encryption at rest, data encryption, disk encryption, database encryption"
     },
     {
-        "csf_id": "PR.DS-2",`n        "subcategory": "PR.DS-2",
+        "csf_id": "PR.DS-2",
+        "subcategory": "PR.DS-2",
         "function": "Protect",
         "category": "PR.DS",
         "name": "Data in Transit",
@@ -138,7 +153,8 @@ CSF_CONTROLS = [
         "keywords": "encryption in transit, TLS, SSL, HTTPS, VPN, secure transmission"
     },
     {
-        "csf_id": "PR.IP-1",`n        "subcategory": "PR.IP-1",
+        "csf_id": "PR.IP-1",
+        "subcategory": "PR.IP-1",
         "function": "Protect",
         "category": "PR.IP",
         "name": "Configuration Management",
@@ -148,7 +164,8 @@ CSF_CONTROLS = [
     
     # Detect Function
     {
-        "csf_id": "DE.AE-1",`n        "subcategory": "DE.AE-1",
+        "csf_id": "DE.AE-1",
+        "subcategory": "DE.AE-1",
         "function": "Detect",
         "category": "DE.AE",
         "name": "Anomaly Detection",
@@ -156,7 +173,8 @@ CSF_CONTROLS = [
         "keywords": "anomaly detection, baseline, network monitoring, behavioral analysis"
     },
     {
-        "csf_id": "DE.CM-1",`n        "subcategory": "DE.CM-1",
+        "csf_id": "DE.CM-1",
+        "subcategory": "DE.CM-1",
         "function": "Detect",
         "category": "DE.CM",
         "name": "Network Monitoring",
@@ -164,7 +182,8 @@ CSF_CONTROLS = [
         "keywords": "network monitoring, IDS, IPS, network security monitoring, packet inspection"
     },
     {
-        "csf_id": "DE.CM-3",`n        "subcategory": "DE.CM-3",
+        "csf_id": "DE.CM-3",
+        "subcategory": "DE.CM-3",
         "function": "Detect",
         "category": "DE.CM",
         "name": "Personnel Activity Monitoring",
@@ -172,7 +191,8 @@ CSF_CONTROLS = [
         "keywords": "user activity monitoring, insider threat, privileged user monitoring, UBA"
     },
     {
-        "csf_id": "DE.CM-7",`n        "subcategory": "DE.CM-7",
+        "csf_id": "DE.CM-7",
+        "subcategory": "DE.CM-7",
         "function": "Detect",
         "category": "DE.CM",
         "name": "Unauthorized Activity",
@@ -180,7 +200,8 @@ CSF_CONTROLS = [
         "keywords": "unauthorized access, rogue devices, shadow IT, unauthorized software"
     },
     {
-        "csf_id": "DE.DP-1",`n        "subcategory": "DE.DP-1",
+        "csf_id": "DE.DP-1",
+        "subcategory": "DE.DP-1",
         "function": "Detect",
         "category": "DE.DP",
         "name": "Detection Process",
@@ -190,7 +211,8 @@ CSF_CONTROLS = [
     
     # Respond Function
     {
-        "csf_id": "RS.AN-1",`n        "subcategory": "RS.AN-1",
+        "csf_id": "RS.AN-1",
+        "subcategory": "RS.AN-1",
         "function": "Respond",
         "category": "RS.AN",
         "name": "Incident Analysis",
@@ -198,7 +220,8 @@ CSF_CONTROLS = [
         "keywords": "incident analysis, alert triage, security investigation, incident response"
     },
     {
-        "csf_id": "RS.AN-2",`n        "subcategory": "RS.AN-2",
+        "csf_id": "RS.AN-2",
+        "subcategory": "RS.AN-2",
         "function": "Respond",
         "category": "RS.AN",
         "name": "Impact Assessment",
@@ -206,7 +229,8 @@ CSF_CONTROLS = [
         "keywords": "impact analysis, incident severity, business impact, damage assessment"
     },
     {
-        "csf_id": "RS.CO-1",`n        "subcategory": "RS.CO-1",
+        "csf_id": "RS.CO-1",
+        "subcategory": "RS.CO-1",
         "function": "Respond",
         "category": "RS.CO",
         "name": "Response Communications",
@@ -214,7 +238,8 @@ CSF_CONTROLS = [
         "keywords": "incident response plan, response procedures, escalation, communication plan"
     },
     {
-        "csf_id": "RS.MI-1",`n        "subcategory": "RS.MI-1",
+        "csf_id": "RS.MI-1",
+        "subcategory": "RS.MI-1",
         "function": "Respond",
         "category": "RS.MI",
         "name": "Incident Mitigation",
@@ -222,7 +247,8 @@ CSF_CONTROLS = [
         "keywords": "containment, mitigation, incident remediation, threat neutralization"
     },
     {
-        "csf_id": "RS.RP-1",`n        "subcategory": "RS.RP-1",
+        "csf_id": "RS.RP-1",
+        "subcategory": "RS.RP-1",
         "function": "Respond",
         "category": "RS.RP",
         "name": "Response Planning",
@@ -232,7 +258,8 @@ CSF_CONTROLS = [
     
     # Recover Function
     {
-        "csf_id": "RC.RP-1",`n        "subcategory": "RC.RP-1",
+        "csf_id": "RC.RP-1",
+        "subcategory": "RC.RP-1",
         "function": "Recover",
         "category": "RC.RP",
         "name": "Recovery Planning",
@@ -240,7 +267,8 @@ CSF_CONTROLS = [
         "keywords": "recovery plan, business continuity, disaster recovery, restoration"
     },
     {
-        "csf_id": "RC.CO-1",`n        "subcategory": "RC.CO-1",
+        "csf_id": "RC.CO-1",
+        "subcategory": "RC.CO-1",
         "function": "Recover",
         "category": "RC.CO",
         "name": "Recovery Communications",
@@ -253,31 +281,42 @@ CSF_CONTROLS = [
 def seed_controls():
     """Seed the database with NIST CSF 2.0 controls."""
     print(f"Seeding {len(CSF_CONTROLS)} NIST CSF controls...")
-    
+
     with Session(engine) as session:
-        # Clear existing controls
-        existing = session.exec(select(Control)).all()
-        for control in existing:
-            session.delete(control)
+        added = 0
+        updated = 0
         
-        # Add new controls
         for control_data in CSF_CONTROLS:
-            control = Control(**control_data)
-            session.add(control)
+            # Check if control exists
+            existing = session.exec(
+                select(Control).where(Control.csf_id == control_data["csf_id"])
+            ).first()
+            
+            if existing:
+                # Update existing control
+                for key, value in control_data.items():
+                    setattr(existing, key, value)
+                updated += 1
+            else:
+                # Add new control
+                control = Control(**control_data)
+                session.add(control)
+                added += 1
         
         session.commit()
-        print(f"✓ Successfully seeded {len(CSF_CONTROLS)} controls!")
-        
+        print(f"✓ Added {added} new controls, updated {updated} existing controls")
+
         # Print summary
         print("\nControls by function:")
         function_counts = {}
         for control_data in CSF_CONTROLS:
             func = control_data["function"]
             function_counts[func] = function_counts.get(func, 0) + 1
-        
+
         for func, count in sorted(function_counts.items()):
             print(f"  {func}: {count}")
 
 
 if __name__ == "__main__":
     seed_controls()
+
