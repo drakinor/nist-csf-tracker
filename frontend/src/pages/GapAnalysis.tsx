@@ -1,11 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle, XCircle, TrendingDown, Filter } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tantml:react-query';
+import { AlertTriangle, CheckCircle, XCircle, TrendingDown, Filter, Plus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import axios from 'axios';
 
 export default function GapAnalysis() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('open');
   const [gapTypeFilter, setGapTypeFilter] = useState<string>('');
@@ -276,15 +277,28 @@ export default function GapAnalysis() {
                         </div>
 
                         {gap.status === 'open' && (
-                          <button
-                            className="btn btn-success"
-                            onClick={() => resolveGapMutation.mutate(gap.id)}
-                            disabled={resolveGapMutation.isPending}
-                            style={{ marginLeft: '1rem' }}
-                          >
-                            <CheckCircle size={16} />
-                            Mark Resolved
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => {
+                                // Navigate to actions page with gap pre-selected
+                                navigate('/actions', { state: { gapId: gap.id } });
+                              }}
+                              style={{ fontSize: '0.875rem' }}
+                            >
+                              <Plus size={14} />
+                              Create Action
+                            </button>
+                            <button
+                              className="btn btn-success"
+                              onClick={() => resolveGapMutation.mutate(gap.id)}
+                              disabled={resolveGapMutation.isPending}
+                              style={{ fontSize: '0.875rem' }}
+                            >
+                              <CheckCircle size={14} />
+                              Resolve
+                            </button>
+                          </div>
                         )}
                       </div>
 

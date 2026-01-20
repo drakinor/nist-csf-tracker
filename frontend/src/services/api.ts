@@ -100,6 +100,35 @@ export interface Action {
   completed_at?: string;
 }
 
+export interface Risk {
+  id: number;
+  control_id: number;
+  gap_id?: number;
+  risk_title: string;
+  risk_statement: string;
+  likelihood: string;
+  impact: string;
+  inherent_risk_score: number;
+  residual_risk_score?: number;
+  treatment: string;
+  treatment_rationale?: string;
+  compensating_controls?: string;
+  acceptance_approver?: string;
+  acceptance_approved_at?: string;
+  acceptance_expiry_date?: string;
+  mitigation_plan?: string;
+  mitigation_owner?: string;
+  mitigation_target_date?: string;
+  status: string;
+  review_frequency: string;
+  last_reviewed_at?: string;
+  next_review_date?: string;
+  risk_category?: string;
+  created_at: string;
+  created_by?: string;
+  updated_at?: string;
+}
+
 export interface Candidate {
   chunk_id: number;
   artifact_id: number;
@@ -189,13 +218,24 @@ export const evidenceLinkApi = {
 export const scoreApi = {
   list: () => api.get<Score[]>('/scores/'),
   recalculateAll: () => api.post('/scores/recalculate-all'),
+  recalculateWeighted: () => api.post('/scores/recalculate-weighted'),
   getDashboard: () => api.get('/scores/dashboard'),
   getHistory: (controlId: number) => api.get(`/scores/history/${controlId}`),
+  getLowestScoring: (limit: number = 10) => api.get(`/scores/lowest?limit=${limit}`),
+  getTrends: (days: number = 30) => api.get(`/scores/trends?days=${days}`),
+  createSnapshot: () => api.post('/scores/snapshot'),
+  overrideScore: (controlId: number, data: {
+    score_value: number;
+    score_label: string;
+    notes: string;
+    user?: string;
+  }) => api.post(`/scores/${controlId}/override`, data),
 };
 
 export const gapApi = {
   list: (params?: { status?: string; severity?: string; gap_type?: string; control_id?: number }) =>
     api.get<Gap[]>('/gaps/', { params }),
+  get: (id: number) => api.get<Gap>(`/gaps/${id}`),
   getSummary: () => api.get('/gaps/summary'),
   create: (data: { control_id: number; gap_type: string; description: string; severity?: string }) =>
     api.post<Gap>('/gaps/', data),
@@ -207,6 +247,9 @@ export const gapApi = {
 export const actionApi = {
   list: (params?: { status?: string }) =>
     api.get<Action[]>('/actions/', { params }),
+  get: (id: number) => api.get<Action>(`/actions/${id}`),
+  getSummary: () => api.get('/actions/summary/stats'),
+  getKanban: () => api.get('/actions/kanban/board'),
   create: (data: {
     gap_id?: number;
     control_id?: number;
@@ -224,6 +267,53 @@ export const actionApi = {
     status?: string;
     acceptance_criteria?: string;
   }) => api.patch<Action>(`/actions/${id}`, data),
+  delete: (id: number) => api.delete(`/actions/${id}`),
+};
+
+export const riskApi = {
+  list: (params?: { 
+    status?: string; 
+    treatment?: string; 
+    risk_category?: string;
+    control_id?: number;
+    min_risk_score?: number;
+  }) => api.get<Risk[]>('/risks/', { params }),
+  get: (id: number) => api.get<Risk>(`/risks/${id}`),
+  getSummary: () => api.get('/risks/summary/stats'),
+  getHeatmap: () => api.get('/risks/heatmap/data'),
+  getHighestRisks: (limit?: number) => api.get('/risks/top/highest', { params: { limit } }),
+  getDueForReview: () => api.get<Risk[]>('/risks/due/reviews'),
+  create: (data: {
+    control_id: number;
+    gap_id?: number;
+    risk_title: string;
+    risk_statement: string;
+    likelihood: string;
+    impact: string;
+    treatment?: string;
+    risk_category?: string;
+  }) => api.post<Risk>('/risks/', data),
+  update: (id: number, data: Partial<Risk>) =>
+    api.patch<Risk>(`/risks/${id}`, data),
+  delete: (id: number) => api.delete(`/risks/${id}`),
+  accept: (id: number, data: {
+    acceptance_approver: string;
+    compensating_controls?: string;
+    acceptance_expiry_date?: string;
+    treatment_rationale?: string;
+  }) => api.post<Risk>(`/risks/${id}/accept`, data),
+  mitigate: (id: number, data: {
+    mitigation_plan: string;
+    mitigation_owner: string;
+    mitigation_target_date?: string;
+    residual_risk_score?: number;
+    treatment_rationale?: string;
+  }) => api.post<Risk>(`/risks/${id}/mitigate`, data),
+  close: (id: number, closure_notes?: string) =>
+    api.post<Risk>(`/risks/${id}/close`, null, { params: { closure_notes } }),
+  markReviewed: (id: number, review_notes?: string) =>
+    api.post<Risk>(`/risks/${id}/review`, null, { params: { review_notes } }),
+  generateFromGaps: () => api.post('/risks/generate/from-gaps'),
 };
 
 export default api;

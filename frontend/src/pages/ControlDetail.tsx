@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, XCircle, Eye, AlertTriangle, Trash2, Sparkles } from 'lucide-react';
-import { controlApi, evidenceApi, type Candidate } from '../services/api';
+import { CheckCircle, XCircle, Eye, AlertTriangle, Trash2, Sparkles, Edit } from 'lucide-react';
+import { controlApi, evidenceApi, scoreApi, type Candidate } from '../services/api';
 
 // Helper function to highlight matching keywords
 function highlightMatches(text: string, control: any) {
@@ -123,6 +123,9 @@ export default function ControlDetail() {
   const [viewingCandidate, setViewingCandidate] = useState<Candidate | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [analyzingCandidate, setAnalyzingCandidate] = useState<number | null>(null);
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overrideValue, setOverrideValue] = useState<number>(0.0);
+  const [overrideNotes, setOverrideNotes] = useState('');
 
   const { data: control } = useQuery({
     queryKey: ['control', controlId],
@@ -228,6 +231,34 @@ export default function ControlDetail() {
     }
   };
 
+  const overrideScoreMutation = useMutation({
+    mutationFn: async () => {
+      const scoreLabels = {
+        0.0: 'none',
+        0.33: 'partial',
+        0.66: 'mostly',
+        1.0: 'full'
+      };
+      
+      await scoreApi.overrideScore(controlId, {
+        score_value: overrideValue,
+        score_label: scoreLabels[overrideValue as keyof typeof scoreLabels] || 'none',
+        notes: overrideNotes,
+        user: 'admin'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['score', controlId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setShowOverrideForm(false);
+      setOverrideNotes('');
+      alert('Score manually overridden successfully');
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.detail || 'Failed to override score');
+    }
+  });
+
   const candidates = candidatesData?.candidates || [];
   const acceptedEvidence = evidence?.filter((e) => e.status === 'accepted') || [];
 
@@ -254,13 +285,111 @@ export default function ControlDetail() {
               {score && (
                 <div style={{ textAlign: 'right' }}>
                   <div className="text-sm mb-1" style={{ color: '#666666' }}>Current Score</div>
-                  <span className={`badge badge-${score.score_label}`} style={{ fontSize: '1.25rem', padding: '0.5rem 1rem' }}>
-                    {score.score_label.toUpperCase()}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <span className={`badge badge-${score.score_label}`} style={{ fontSize: '1.25rem', padding: '0.5rem 1rem' }}>
+                      {score.score_label.toUpperCase()}
+                    </span>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '0.5rem 0.75rem' }}
+                      onClick={() => setShowOverrideForm(!showOverrideForm)}
+                      title="Manually override score"
+                    >
+                      <Edit size={16} />
+                    </button>
+                  </div>
+                  {score.method === 'manual' && (
+                    <div className="text-xs mt-1" style={{ color: '#f59e0b', fontStyle: 'italic' }}>
+                      Manually overridden
+                    </div>
+                  )}
                 </div>
               )}
             </div>
             <p style={{ color: '#666666' }}>{control.text}</p>
+            
+            {/* Manual Score Override Form */}
+            {showOverrideForm && score && (
+              <div style={{ 
+                marginTop: '1rem', 
+                padding: '1rem', 
+                background: '#fef3c7', 
+                border: '2px solid #f59e0b', 
+                borderRadius: '8px' 
+              }}>
+                <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem', fontWeight: '600' }}>
+                  Manual Score Override
+                </h3>
+                <p style={{ fontSize: '0.875rem', color: '#92400e', marginBottom: '1rem' }}>
+                  ⚠️ Manual overrides should be used sparingly and documented thoroughly. This will bypass automatic scoring.
+                </p>
+                
+                <div className="mb-2">
+                  <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    New Score
+                  </label>
+                  <select
+                    value={overrideValue}
+                    onChange={(e) => setOverrideValue(parseFloat(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #f59e0b',
+                      borderRadius: '6px',
+                      backgroundColor: '#ffffff',
+                      color: '#1a1a1a'
+                    }}
+                  >
+                    <option value={0.0}>0.0 - None (Not Implemented)</option>
+                    <option value={0.33}>0.33 - Partial (Partially Implemented)</option>
+                    <option value={0.66}>0.66 - Mostly (Largely Implemented)</option>
+                    <option value={1.0}>1.0 - Full (Fully Implemented)</option>
+                  </select>
+                </div>
+                
+                <div className="mb-3">
+                  <label className="text-sm" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                    Justification (required)
+                  </label>
+                  <textarea
+                    value={overrideNotes}
+                    onChange={(e) => setOverrideNotes(e.target.value)}
+                    placeholder="Explain why this manual override is necessary..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #f59e0b',
+                      borderRadius: '6px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff',
+                      color: '#1a1a1a'
+                    }}
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    className="btn"
+                    style={{ background: '#f59e0b', color: 'white' }}
+                    onClick={() => overrideScoreMutation.mutate()}
+                    disabled={!overrideNotes.trim() || overrideScoreMutation.isPending}
+                  >
+                    {overrideScoreMutation.isPending ? 'Saving...' : 'Save Override'}
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowOverrideForm(false);
+                      setOverrideNotes('');
+                    }}
+                    disabled={overrideScoreMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Accepted Evidence */}

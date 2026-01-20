@@ -128,22 +128,50 @@ class Action(SQLModel, table=True):
     completed_at: Optional[datetime] = None
 
 
-class RiskAcceptance(SQLModel, table=True):
-    """Risk acceptance records for controls that are not fully implemented."""
-    __tablename__ = "risk_acceptance"
+class Risk(SQLModel, table=True):
+    """Risk register entries for controls with identified gaps or low scores."""
+    __tablename__ = "risks"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     control_id: int = Field(foreign_key="controls.id", index=True)
+    gap_id: Optional[int] = Field(foreign_key="gaps.id", index=True)  # Optional link to specific gap
+    risk_title: str
     risk_statement: str = Field(sa_column=Column(Text))
-    likelihood: str = Field(default="medium")  # low, medium, high
-    impact: str = Field(default="medium")  # low, medium, high
+    
+    # Risk scoring
+    likelihood: str = Field(default="medium", index=True)  # low, medium, high, very_high
+    impact: str = Field(default="medium", index=True)  # low, medium, high, critical
+    inherent_risk_score: int = Field(default=9)  # Calculated: likelihood × impact (1-25)
+    residual_risk_score: Optional[int] = None  # After mitigation
+    
+    # Risk treatment decision
+    treatment: str = Field(default="mitigate", index=True)  # accept, mitigate, transfer, avoid
+    treatment_rationale: Optional[str] = Field(default=None, sa_column=Column(Text))
+    
+    # Acceptance details (if treatment = accept)
     compensating_controls: Optional[str] = Field(default=None, sa_column=Column(Text))
-    approver: Optional[str] = None
-    approved_at: Optional[datetime] = None
-    expiry_date: Optional[datetime] = None  # Risk acceptance must be renewed
-    review_frequency: Optional[str] = None  # quarterly, annually, etc.
-    status: str = Field(default="pending", index=True)  # pending, approved, expired, rejected
+    acceptance_approver: Optional[str] = None
+    acceptance_approved_at: Optional[datetime] = None
+    acceptance_expiry_date: Optional[datetime] = None
+    
+    # Mitigation details (if treatment = mitigate)
+    mitigation_plan: Optional[str] = Field(default=None, sa_column=Column(Text))
+    mitigation_owner: Optional[str] = None
+    mitigation_target_date: Optional[datetime] = None
+    
+    # Status tracking
+    status: str = Field(default="open", index=True)  # open, under_review, accepted, mitigated, transferred, closed
+    review_frequency: str = Field(default="quarterly")  # monthly, quarterly, annually
+    last_reviewed_at: Optional[datetime] = None
+    next_review_date: Optional[datetime] = None
+    
+    # Category for grouping
+    risk_category: Optional[str] = Field(default=None, index=True)  # operational, technical, compliance, strategic
+    
+    # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: Optional[str] = None
+    updated_at: Optional[datetime] = None
 
 
 class ScoreEvent(SQLModel, table=True):
@@ -159,3 +187,16 @@ class ScoreEvent(SQLModel, table=True):
     user: Optional[str] = None
     reason: Optional[str] = Field(default=None, sa_column=Column(Text))
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class ScoreSnapshot(SQLModel, table=True):
+    '''Periodic snapshots of aggregate scores for trend analysis.'''
+    __tablename__ = 'score_snapshots'
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    snapshot_date: datetime = Field(default_factory=datetime.utcnow, index=True)
+    overall_percentage: float = Field(default=0.0)
+    total_controls: int = Field(default=0)
+    scored_controls: int = Field(default=0)
+    function_scores: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # {function: percentage}
+    category_scores: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # {category: percentage}
+    score_distribution: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # {full, mostly, partial, none counts}

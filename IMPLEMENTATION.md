@@ -4,7 +4,7 @@
 
 A local-first application for tracking NIST Cybersecurity Framework compliance with automated evidence detection and human validation.
 
-**Status**: ✅ EPIC 0-4 Complete (MVP Ready)
+**Status**: ✅ EPIC 0-6 Complete (MVP+ Ready with Gap Management)
 
 ---
 
@@ -66,6 +66,61 @@ A local-first application for tracking NIST Cybersecurity Framework compliance w
   - Centralized pending evidence review
   - Bulk validation support
   - Quick accept/reject with evidence typing
+
+### ✅ EPIC 5: Advanced Scoring + Rollups + Dashboard
+- **Advanced weighted scoring**:
+  - Evidence type weights (policy/procedure/technical/operational/assessment)
+  - Confidence multipliers (high/medium/low)
+  - Normalized to standard score levels
+- **Manual score override**:
+  - Full audit trail for manual overrides
+  - Justification notes required
+  - Visual indicator in UI
+- **Lowest scoring controls**:
+  - Priority actions widget showing controls needing attention
+  - Sortable by score, function, category
+- **Historical trend tracking**:
+  - Score snapshot model for time-series data
+  - Trend visualization with line charts
+  - 30-day default trend period (configurable)
+  - Automated snapshot capture script
+- **Enhanced dashboard**:
+  - Overall compliance percentage
+  - Function-level progress bars with color coding
+  - Category breakdown table
+  - Score distribution (full/mostly/partial/none)
+  - Trend direction indicators
+  - Capture snapshot button
+
+### ✅ EPIC 6: Gap Analysis + Action Items
+- **Automated gap generation**:
+  - 6 gap types (missing_control, missing_policy, missing_procedure, etc.)
+  - Severity assignment based on score (critical/high/medium/low)
+  - Auto-generation during score calculation
+  - Manual regeneration endpoint
+- **Gap Analysis dashboard**:
+  - Summary statistics (total, by severity, by status)
+  - Filtering by severity, status, and gap type
+  - Grouped display by severity
+  - Direct control links
+  - Create action workflow
+- **Action item management**:
+  - Full CRUD operations (Create, Read, Update, Delete)
+  - Fields: title, description, owner, due date, acceptance criteria
+  - Status workflow: open → in_progress → blocked → complete
+  - Gap linking (optional)
+  - Overdue detection and highlighting
+- **Kanban board view**:
+  - 4-column layout (open/in_progress/blocked/complete)
+  - Visual status indicators with color coding
+  - Quick status transition buttons
+  - Action cards with owner and due date
+  - Summary statistics panel
+- **Gap-to-action workflow**:
+  - One-click action creation from gaps
+  - Pre-populated forms with gap context
+  - Resolution tracking
+  - Audit trail
 
 ---
 
@@ -209,8 +264,38 @@ Access at:
 2. View overall compliance percentage
 3. Review function-level rollups
 4. Check pending validation count
+5. View trend chart (30-day history)
+6. Capture score snapshot for tracking
 
-### Step 5: Bulk Validation (Optional)
+### Step 5: Analyze Gaps
+1. Navigate to **Gap Analysis**
+2. Review summary statistics
+3. Filter by severity (critical/high/medium/low)
+4. View gaps grouped by severity
+5. Click control links to view details
+
+### Step 6: Create Action Items
+1. From **Gap Analysis**, click **Create Action** on a gap
+2. Or navigate to **Actions** page and click **New Action**
+3. Fill in action details:
+   - Title (required)
+   - Owner
+   - Due date
+   - Acceptance criteria
+   - Link to gap (optional)
+4. Click **Create Action**
+
+### Step 7: Track Actions in Kanban
+1. Navigate to **Actions** page
+2. View actions in 4 columns (Open/In Progress/Blocked/Complete)
+3. Use quick action buttons to transition status:
+   - **Open**: Click "Start" → In Progress
+   - **In Progress**: Click "Done" → Complete or "Block" → Blocked
+   - **Blocked**: Click "Resume" → In Progress
+4. Monitor overdue actions (highlighted in red)
+5. Check summary statistics
+
+### Step 8: Bulk Validation (Optional)
 1. Navigate to **Validation Queue**
 2. Review all pending evidence in one place
 3. Quickly accept/reject with evidence typing
@@ -253,6 +338,33 @@ Access at:
 - [x] Validation queue page for bulk review
 - [x] Audit trail recording
 
+### EPIC 5: Advanced Scoring + Rollups + Dashboard ✅
+- [x] Advanced weighted scoring algorithm
+- [x] Manual score override with audit trail
+- [x] Lowest scoring controls widget
+- [x] Historical trend tracking with snapshots
+- [x] Score snapshot model and API endpoints
+- [x] Automated snapshot capture script
+- [x] Enhanced dashboard with trend visualization
+- [x] Line chart for compliance trends
+- [x] Priority actions table
+
+### EPIC 6: Gap Analysis + Action Items ✅
+- [x] Automated gap generation (6 types)
+- [x] Gap severity assignment (critical/high/medium/low)
+- [x] Gap status tracking (open/in_progress/resolved/accepted)
+- [x] Gap Analysis dashboard with summary statistics
+- [x] Filtering by severity, status, and gap type
+- [x] Action item model (title, owner, due date, etc.)
+- [x] Action CRUD API endpoints
+- [x] Kanban board view (4 columns)
+- [x] Status workflow (open → in_progress → blocked → complete)
+- [x] Overdue action detection and highlighting
+- [x] Gap-to-action creation workflow
+- [x] Action summary statistics
+- [x] Quick status transition buttons
+- [x] Capture snapshot button in UI
+
 ---
 
 ## 🔧 Technical Details
@@ -285,6 +397,8 @@ Access at:
 - `Controls`: Browse controls by function/category
 - `ControlDetail`: Validation workspace with candidates
 - `ValidationQueue`: Bulk validation interface
+- `GapAnalysis`: Gap identification and filtering dashboard
+- `Actions`: Kanban board for action item management
 
 ### Evidence Matching Algorithm
 
@@ -319,11 +433,12 @@ Access at:
 
 ## 📈 Next Steps (Post-MVP)
 
-### EPIC 5: Scoring + Rollups + Dashboard
-- [ ] Advanced scoring rules (weighted by evidence type)
-- [ ] Manual score override capability
-- [ ] "Lowest scoring controls" widget
-- [ ] Historical trend charts
+### EPIC 5: Scoring + Rollups + Dashboard ✅ COMPLETE
+- [x] Advanced scoring rules (weighted by evidence type)
+- [x] Manual score override capability
+- [x] "Lowest scoring controls" widget
+- [x] Historical trend charts
+- [x] Score snapshot automation
 
 ### EPIC 6: Gap Analysis + Action Items
 - [ ] Automated gap generation from missing controls
@@ -545,7 +660,51 @@ For questions or issues:
 - [x] Scores roll up by category/function
 - [x] Dashboard shows overall compliance posture
 
-**Current Status**: **MVP COMPLETE** - Ready for production use!
+**EPIC 5 Enhancement** ✅:
+- [x] Advanced weighted scoring with evidence types
+- [x] Manual score overrides with audit trail
+- [x] Historical trend tracking with snapshots
+- [x] Priority actions dashboard
+- [x] Enhanced visualization
+
+**EPIC 6 Gap Management** ✅:
+- [x] Automated gap identification
+- [x] Gap analysis dashboard with filtering
+- [x] Action item tracking with Kanban board
+- [x] Gap-to-action workflow
+- [x] Overdue monitoring
+
+**Current Status**: **EPIC 0-6 COMPLETE** - Ready for production use with full gap management!
+
+---
+
+## 🚀 Next Steps
+
+### EPIC 7: Risk Acceptance (Pending)
+- Risk register
+- Accept/mitigate decisions
+- Risk-based prioritization
+
+### EPIC 8: PDF Reporting (Pending)
+- Compliance report generation
+- Evidence attachments
+- Executive summaries
+
+### EPIC 9: Optional Local LLM Enhancement (Pending)
+- Ollama integration
+- Semantic evidence matching
+- Evidence summarization
+
+---
+
+## 📚 Additional Documentation
+
+- **[EPIC 5 Completion](EPIC_5_COMPLETION.md)**: Advanced Scoring details
+- **[EPIC 5 Quick Reference](EPIC_5_QUICK_REFERENCE.md)**: Quick commands for EPIC 5
+- **[EPIC 5 Test Results](EPIC_5_TEST_RESULTS.md)**: Testing documentation
+- **[EPIC 6 Completion](EPIC_6_COMPLETION.md)**: Gap Analysis + Actions details
+- **[EPIC 6 Quick Reference](EPIC_6_QUICK_REFERENCE.md)**: Quick commands for EPIC 6
+- **[EPIC 6 Test Results](EPIC_6_TEST_RESULTS.md)**: Testing documentation
 
 ---
 

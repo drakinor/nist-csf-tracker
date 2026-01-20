@@ -8,6 +8,8 @@ import Controls from './pages/Controls';
 import ControlDetail from './pages/ControlDetail';
 import ValidationQueue from './pages/ValidationQueue';
 import GapAnalysis from './pages/GapAnalysis';
+import Actions from './pages/Actions';
+import RiskRegister from './pages/RiskRegister';
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -54,6 +56,8 @@ function App() {
                 <Link to="/controls" style={{ color: 'white', textDecoration: 'none' }}>Controls</Link>
                 <Link to="/validation" style={{ color: 'white', textDecoration: 'none' }}>Validation Queue</Link>
                 <Link to="/gaps" style={{ color: 'white', textDecoration: 'none' }}>Gap Analysis</Link>
+                <Link to="/actions" style={{ color: 'white', textDecoration: 'none' }}>Actions</Link>
+                <Link to="/risks" style={{ color: 'white', textDecoration: 'none' }}>Risks</Link>
               </nav>
             </div>
           </div>
@@ -67,6 +71,8 @@ function App() {
             <Route path="/controls/:id" element={<ControlDetail />} />
             <Route path="/validation" element={<ValidationQueue />} />
             <Route path="/gaps" element={<GapAnalysis />} />
+            <Route path="/actions" element={<Actions />} />
+            <Route path="/risks" element={<RiskRegister />} />
           </Routes>
         </main>
       </div>

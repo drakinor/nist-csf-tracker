@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 from app.database import engine
 from app.models import (
     Artifact, ArtifactChunk, Control, Evidence,
-    Score, Gap, Action, RiskAcceptance, ScoreEvent
+    Score, Gap, Action, Risk, ScoreEvent, ScoreSnapshot, EvidenceControlLink
 )
 
 
@@ -23,3 +23,4 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
+

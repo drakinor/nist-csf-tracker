@@ -93,6 +93,18 @@ async def create_gap(
     return gap
 
 
+@router.get("/{gap_id}", response_model=Gap)
+async def get_gap(
+    gap_id: int,
+    session: Session = Depends(get_session)
+):
+    """Get a specific gap by ID."""
+    gap = session.get(Gap, gap_id)
+    if not gap:
+        raise HTTPException(status_code=404, detail="Gap not found")
+    return gap
+
+
 @router.patch("/{gap_id}", response_model=Gap)
 async def update_gap(
     gap_id: int,

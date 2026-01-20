@@ -25,6 +25,23 @@ class ScoringService:
         "fully-implemented": 1.0
     }
 
+    # Evidence type weights for advanced scoring
+    EVIDENCE_WEIGHTS = {
+        "policy": 0.25,        # Foundation - establishes rules
+        "procedure": 0.25,     # Process - defines how to implement
+        "technical": 0.30,     # Enforcement - technical controls
+        "operational": 0.20,   # Proof - operational evidence of execution
+        "assessment": 0.15     # Validation - independent verification
+    }
+    
+    # Quality multipliers based on confidence level
+    CONFIDENCE_MULTIPLIERS = {
+        "high": 1.0,
+        "medium": 0.85,
+        "low": 0.70,
+        None: 0.85  # Default for unspecified
+    }
+
     def __init__(self, session: Session):
         self.session = session
 
@@ -164,6 +181,150 @@ class ScoringService:
             types_found = ", ".join(evidence_types)
             rationale = f"Partial evidence ({types_found}), but missing policy foundation"
             return self.SCORE_MAP["partially-implemented"], "partially-implemented", rationale
+
+
+    def _calculate_weighted_score(self, evidence_list: List[Evidence]) -> tuple[float, str, str]:
+        """
+        Calculate score using weighted evidence approach.
+        This provides more granular scoring than the basic boolean method.
+        
+        Returns: (score_value, score_label, rationale)
+        """
+        if not evidence_list:
+            return 0.0, "not-implemented", "No validated evidence"
+        
+        # Calculate weighted score
+        total_weight = 0.0
+        evidence_breakdown = {}
+        
+        for evidence in evidence_list:
+            if not evidence.evidence_type:
+                continue
+                
+            # Get base weight for evidence type
+            base_weight = self.EVIDENCE_WEIGHTS.get(evidence.evidence_type, 0.1)
+            
+            # Apply confidence multiplier
+            confidence_mult = self.CONFIDENCE_MULTIPLIERS.get(evidence.confidence, 0.85)
+            
+            # Calculate final weight
+            weighted_value = base_weight * confidence_mult
+            total_weight += weighted_value
+            
+            # Track evidence types for rationale
+            if evidence.evidence_type not in evidence_breakdown:
+                evidence_breakdown[evidence.evidence_type] = 0
+            evidence_breakdown[evidence.evidence_type] += 1
+        
+        # Normalize score to 0.0 - 1.0 range
+        # Cap at 1.0 (100%)
+        normalized_score = min(total_weight, 1.0)
+        
+        # Map to discrete score levels
+        if normalized_score >= 0.90:
+            score_value = 1.0
+            score_label = "fully-implemented"
+        elif normalized_score >= 0.60:
+            score_value = 0.66
+            score_label = "largely-implemented"
+        elif normalized_score >= 0.30:
+            score_value = 0.33
+            score_label = "partially-implemented"
+        else:
+            score_value = 0.0
+            score_label = "not-implemented"
+        
+        # Build rationale
+        evidence_summary = ", ".join([f"{count} {etype}" for etype, count in evidence_breakdown.items()])
+        rationale = f"Weighted score: {normalized_score:.2f} based on {evidence_summary}"
+        
+        return score_value, score_label, rationale
+    
+    def calculate_control_score_advanced(self, control_id: int, use_weighted: bool = False) -> Score:
+        """
+        Calculate score with option to use weighted scoring.
+        
+        Args:
+            control_id: The control to score
+            use_weighted: If True, uses weighted scoring; if False, uses standard boolean logic
+        """
+        # Get evidence (same as standard method)
+        primary_statement = select(Evidence).where(
+            Evidence.control_id == control_id,
+            Evidence.status == "accepted"
+        )
+        primary_evidence = self.session.exec(primary_statement).all()
+
+        linked_statement = (
+            select(Evidence)
+            .join(EvidenceControlLink, Evidence.id == EvidenceControlLink.evidence_id)
+            .where(
+                EvidenceControlLink.control_id == control_id,
+                Evidence.status == "accepted"
+            )
+        )
+        linked_evidence = self.session.exec(linked_statement).all()
+        all_evidence = list(primary_evidence) + list(linked_evidence)
+
+        # Choose scoring method
+        if use_weighted:
+            new_score_value, new_score_label, rationale = self._calculate_weighted_score(all_evidence)
+        else:
+            new_score_value, new_score_label, rationale = self._determine_score(all_evidence)
+
+        # Rest of the logic is same as calculate_control_score
+        score_statement = select(Score).where(Score.control_id == control_id)
+        score = self.session.exec(score_statement).first()
+
+        if score:
+            if score.score_value != new_score_value:
+                event = ScoreEvent(
+                    control_id=control_id,
+                    old_score=score.score_value,
+                    new_score=new_score_value,
+                    old_label=score.score_label,
+                    new_label=new_score_label,
+                    reason=f"Score recalculation ({'weighted' if use_weighted else 'standard'}): {rationale}"
+                )
+                self.session.add(event)
+
+            score.score_value = new_score_value
+            score.score_label = new_score_label
+            score.score_rationale = rationale
+            score.calculated_at = datetime.utcnow()
+        else:
+            score = Score(
+                control_id=control_id,
+                score_value=new_score_value,
+                score_label=new_score_label,
+                score_rationale=rationale,
+                method="auto"
+            )
+            self.session.add(score)
+
+        self.session.commit()
+        self.session.refresh(score)
+        self._generate_gaps(control_id, new_score_value, all_evidence)
+
+        return score
+    
+    def recalculate_all_scores_advanced(self, use_weighted: bool = False) -> dict:
+        """Recalculate all control scores with option for weighted scoring."""
+        from app.models import Control
+        
+        statement = select(Control)
+        controls = self.session.exec(statement).all()
+        
+        updated = 0
+        for control in controls:
+            self.calculate_control_score_advanced(control.id, use_weighted=use_weighted)
+            updated += 1
+        
+        return {
+            "updated": updated,
+            "total": len(controls),
+            "method": "weighted" if use_weighted else "standard"
+        }
 
     def _generate_gaps(self, control_id: int, score_value: float, evidence_list: List[Evidence]):
         """
@@ -442,3 +603,14 @@ class ScoringService:
         """Count evidence items needing validation."""
         statement = select(func.count()).select_from(Evidence).where(Evidence.status == "pending")
         return self.session.exec(statement).one()
+    def get_score_distribution(self) -> Dict[str, int]:
+        '''Get count of controls by score level.'''
+        statement = select(Score)
+        scores = self.session.exec(statement).all()
+        
+        return {
+            'full': sum(1 for s in scores if s.score_value >= 0.9),
+            'mostly': sum(1 for s in scores if 0.6 <= s.score_value < 0.9),
+            'partial': sum(1 for s in scores if 0.2 <= s.score_value < 0.6),
+            'none': sum(1 for s in scores if s.score_value < 0.2)
+        }

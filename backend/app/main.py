@@ -52,4 +52,4 @@ app.include_router(candidates.router, prefix="/api", tags=["Candidates"])
 app.include_router(scores.router, prefix="/api/scores", tags=["Scores"])
 app.include_router(gaps.router, prefix="/api/gaps", tags=["Gaps"])
 app.include_router(actions.router, prefix="/api/actions", tags=["Actions"])
-app.include_router(risks.router, prefix="/api/risks", tags=["Risk Acceptance"])
+app.include_router(risks.router, tags=["Risks"])  # Prefix defined in router
