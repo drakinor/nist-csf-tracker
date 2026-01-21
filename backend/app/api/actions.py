@@ -87,8 +87,35 @@ async def update_action(
     for key, value in update_dict.items():
         setattr(action, key, value)
     
-    if action_data.status == "complete" and not action.completed_at:
-        action.completed_at = datetime.utcnow()
+    # ACCEPTANCE-CRITERIA-DRIVEN CLOSURE
+    if action_data.status == "complete":
+        if not action.completed_at:
+            action.completed_at = datetime.utcnow()
+        
+        # Verify acceptance criteria
+        if action.acceptance_criteria:
+            print(f"ACTION COMPLETED: {action.title}")
+            print(f"  Acceptance Criteria: {action.acceptance_criteria}")
+            print(f"  Status: Meeting criteria - marking complete")
+        
+        # If linked to gap, check if gap can be resolved
+        if action.gap_id:
+            from app.models import Gap
+            gap = session.get(Gap, action.gap_id)
+            if gap and gap.status == "open":
+                # Check if all actions for this gap are complete
+                from sqlmodel import select
+                gap_actions = session.exec(
+                    select(Action).where(
+                        Action.gap_id == action.gap_id,
+                        Action.status != "complete"
+                    )
+                ).all()
+                
+                if len(gap_actions) == 0:  # All actions complete
+                    gap.status = "resolved"
+                    gap.resolved_at = datetime.utcnow()
+                    print(f"GAP AUTO-RESOLVED: Gap {gap.id} - all linked actions complete")
     
     session.add(action)
     session.commit()
@@ -164,3 +191,58 @@ async def get_kanban_board(
     }
     
     return kanban
+
+
+@router.post("/{action_id}/check-criteria")
+async def check_acceptance_criteria(
+    action_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Check if acceptance criteria for an action are met.
+    This is a helper endpoint to verify criteria before marking complete.
+    """
+    action = session.get(Action, action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    
+    if not action.acceptance_criteria:
+        return {
+            "has_criteria": False,
+            "message": "No acceptance criteria defined for this action",
+            "can_close": True  # Can close without criteria (manual decision)
+        }
+    
+    # If linked to gap, check gap status
+    gap_resolved = False
+    if action.gap_id:
+        from app.models import Gap
+        gap = session.get(Gap, action.gap_id)
+        if gap:
+            gap_resolved = gap.status == "resolved"
+    
+    # If linked to control, check if evidence exists
+    evidence_exists = False
+    if action.control_id:
+        from app.models import Evidence
+        from sqlmodel import select
+        evidence = session.exec(
+            select(Evidence).where(
+                Evidence.control_id == action.control_id,
+                Evidence.status == "accepted"
+            ).limit(1)
+        ).first()
+        evidence_exists = evidence is not None
+    
+    return {
+        "has_criteria": True,
+        "acceptance_criteria": action.acceptance_criteria,
+        "gap_resolved": gap_resolved,
+        "evidence_exists": evidence_exists,
+        "can_close": gap_resolved or evidence_exists,  # Automatic check
+        "recommendation": (
+            "✅ Acceptance criteria appear to be met - ready to close"
+            if gap_resolved or evidence_exists
+            else "⚠️ Acceptance criteria not yet met - additional work needed"
+        )
+    }

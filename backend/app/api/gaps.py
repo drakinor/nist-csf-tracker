@@ -105,6 +105,84 @@ async def get_gap(
     return gap
 
 
+@router.patch("/{gap_id}/resolve")
+async def resolve_gap(
+    gap_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Resolve a gap (ACCEPTANCE-CRITERIA-DRIVEN).
+    Only allows resolution if acceptance criteria are met.
+    """
+    gap = session.get(Gap, gap_id)
+    if not gap:
+        raise HTTPException(status_code=404, detail="Gap not found")
+    
+    # Check acceptance criteria
+    from app.models import Evidence, Action
+    from sqlmodel import select
+    
+    # Check if required evidence exists
+    evidence = session.exec(
+        select(Evidence).where(
+            Evidence.control_id == gap.control_id,
+            Evidence.status == "accepted"
+        )
+    ).all()
+    
+    # Determine acceptance criteria based on gap type
+    criteria_met = False
+    reason = ""
+    
+    if gap.gap_type == "missing_control":
+        criteria_met = len(evidence) > 0
+        reason = f"At least one validated evidence exists ({len(evidence)} found)"
+    elif gap.gap_type == "missing_policy":
+        policy_evidence = [e for e in evidence if e.evidence_type == "policy"]
+        criteria_met = len(policy_evidence) > 0
+        reason = f"Policy evidence validated ({len(policy_evidence)} found)"
+    elif gap.gap_type == "missing_procedure":
+        procedure_evidence = [e for e in evidence if e.evidence_type == "procedure"]
+        criteria_met = len(procedure_evidence) > 0
+        reason = f"Procedure evidence validated ({len(procedure_evidence)} found)"
+    elif gap.gap_type == "missing_technical_enforcement":
+        tech_evidence = [e for e in evidence if e.evidence_type in ["technical", "operational"]]
+        criteria_met = len(tech_evidence) > 0
+        reason = f"Technical/operational evidence validated ({len(tech_evidence)} found)"
+    elif gap.gap_type == "incomplete_implementation":
+        # Check if control score improved to 1.0
+        from app.models import Score
+        score = session.exec(
+            select(Score).where(Score.control_id == gap.control_id)
+        ).first()
+        criteria_met = score and score.score_value >= 1.0
+        reason = f"Control score is now {score.score_value if score else 0.0}"
+    else:
+        # Default: allow manual resolution
+        criteria_met = True
+        reason = "Manual resolution"
+    
+    if not criteria_met:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Acceptance criteria not met. {reason}. Please validate required evidence first."
+        )
+    
+    # Criteria met - resolve the gap
+    gap.status = "resolved"
+    gap.resolved_at = datetime.utcnow()
+    
+    session.add(gap)
+    session.commit()
+    session.refresh(gap)
+    
+    return {
+        "message": "Gap resolved",
+        "gap": gap,
+        "reason": reason
+    }
+
+
 @router.patch("/{gap_id}", response_model=Gap)
 async def update_gap(
     gap_id: int,

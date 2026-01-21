@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import artifacts, controls, evidence, scores, gaps, actions, risks, evidence_links, candidates
+from app.api import artifacts, controls, evidence, scores, gaps, actions, risks, evidence_links, candidates, reports
 
 
 app = FastAPI(
@@ -53,3 +53,4 @@ app.include_router(scores.router, prefix="/api/scores", tags=["Scores"])
 app.include_router(gaps.router, prefix="/api/gaps", tags=["Gaps"])
 app.include_router(actions.router, prefix="/api/actions", tags=["Actions"])
 app.include_router(risks.router, tags=["Risks"])  # Prefix defined in router
+app.include_router(reports.router, prefix="/api", tags=["Reports"])

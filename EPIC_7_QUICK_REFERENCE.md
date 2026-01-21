@@ -1,343 +1,357 @@
 # EPIC 7: Risk Acceptance - Quick Reference
 
-## 🎯 What's New in EPIC 7
+## 🎯 Overview
+Risk acceptance workflow with expiry enforcement, review cadence, and score isolation guarantees.
 
-**Risk Management System**: Complete risk register with scoring, heat maps, and treatment workflows
-
----
-
-## ⚡ Quick Commands
-
-### View Risk Register
-```
-Navigate to: http://localhost:5174/#/risks
-```
-
-### Generate Risks from Gaps
-```powershell
-curl -X POST http://localhost:8000/api/risks/generate/from-gaps
-```
-
-### Get Risk Summary
-```powershell
-curl http://localhost:8000/api/risks/summary/stats
-```
-
-### Get Heat Map Data
-```powershell
-curl http://localhost:8000/api/risks/heatmap/data
-```
+## 📋 Requirements Checklist
+- ✅ Expiry enforcement (required dates, automatic expiry)
+- ✅ Review cadence (tracking, overdue detection)
+- ✅ Score isolation guarantee (explicit guarantees, verification)
 
 ---
 
-## 📊 Key Pages
+## 🔧 Key API Endpoints
 
-### Risk Register (`/risks`)
-**What**: Complete risk management dashboard  
-**Use When**: Reviewing organizational risk posture, board meetings, audit prep
+### Accept Risk (with required expiry)
+```http
+POST /risks/{risk_id}/accept
+Content-Type: application/json
 
-**Quick Actions**:
-- View all risks with filtering
-- See risk heat map visualization
-- Generate risks from gaps
-- Create new risks manually
-- Accept/mitigate/close risks
-
----
-
-## 🔥 Common Workflows
-
-### Quarterly Risk Review
-```
-1. Open Risk Register
-2. Check "Due for Review" count
-3. For each due risk:
-   - Re-assess likelihood/impact
-   - Update if changed
-   - Click "Mark Reviewed"
-4. Review heat map for patterns
-5. Update executive summary
-```
-
-### Accept a Risk
-```
-1. Open risk in Risk Register
-2. Click "View" button
-3. Fill in:
-   - Approver name
-   - Compensating controls
-   - Expiry date (< 1 year)
-   - Rationale
-4. Click "Accept Risk"
-5. Status → "accepted"
-```
-
-### Mitigate a Risk
-```
-1. Open risk in Risk Register
-2. Click "View" button
-3. Fill in:
-   - Mitigation plan
-   - Owner
-   - Target date
-   - Residual risk score
-4. Click "Mitigate Risk"
-5. Status → "under_review"
-6. Track via linked actions
-```
-
-### Generate Risks from Gaps
-```
-1. Ensure gaps exist (critical/high severity)
-2. Go to Risk Register
-3. Click "Generate from Gaps"
-4. Review newly created risks
-5. Assign owners and treatments
-```
-
----
-
-## 📈 Risk Scoring Reference
-
-### Likelihood Values
-| Value | Score | Description |
-|-------|-------|-------------|
-| Low | 1 | Unlikely to occur |
-| Medium | 3 | May occur occasionally |
-| High | 4 | Likely to occur |
-| Very High | 5 | Almost certain to occur |
-
-### Impact Values
-| Value | Score | Description |
-|-------|-------|-------------|
-| Low | 1 | Minimal impact |
-| Medium | 3 | Moderate impact |
-| High | 4 | Significant impact |
-| Critical | 5 | Catastrophic impact |
-
-### Risk Score = Likelihood × Impact
-
-### Risk Levels
-- **Critical**: 20-25 (immediate action)
-- **High**: 10-19 (priority)
-- **Medium**: 5-9 (planned)
-- **Low**: 1-4 (monitor)
-
----
-
-## 🎨 Risk Treatment Options
-
-| Treatment | When to Use | Action Required |
-|-----------|-------------|-----------------|
-| **Accept** | Cost > Impact | Document compensating controls, get approval |
-| **Mitigate** | Cost-effective controls available | Create mitigation plan, assign owner |
-| **Transfer** | Third party can handle better | Document transfer mechanism |
-| **Avoid** | Can eliminate activity | Document avoidance approach |
-
----
-
-## 🛠️ API Quick Reference
-
-### List All Risks
-```bash
-GET /api/risks/
-Query params: ?status=open&treatment=mitigate&min_risk_score=15
-```
-
-### Create Risk
-```bash
-POST /api/risks/
 {
-  "control_id": 5,
-  "risk_title": "VPN Access Control Weakness",
-  "risk_statement": "Lack of MFA on VPN creates unauthorized access risk",
-  "likelihood": "high",
-  "impact": "high",
-  "risk_category": "technical"
+  "treatment": "accept",
+  "justification": "Risk is acceptable because...",
+  "expiry_date": "2024-12-31T23:59:59"  # REQUIRED, must be future
 }
 ```
 
-### Accept Risk
-```bash
-POST /api/risks/123/accept
+**Returns:** Risk object with acceptance details + score isolation guarantee
+
+**Validations:**
+- ✅ `expiry_date` is required
+- ✅ `expiry_date` must be in the future
+- ❌ Past dates rejected with 400 error
+- ❌ Missing expiry rejected with 422 error
+
+---
+
+### List Expired Acceptances
+```http
+GET /risks/expired/acceptances
+```
+
+**Returns:**
+```json
 {
-  "acceptance_approver": "CISO",
-  "compensating_controls": "Enhanced monitoring, quarterly reviews",
-  "acceptance_expiry_date": "2027-01-16T00:00:00",
-  "treatment_rationale": "Mitigation cost exceeds risk"
+  "expired_count": 5,
+  "expired_risks": [
+    {
+      "id": 3,
+      "control_id": "ID.AM-1",
+      "status": "accepted",
+      "expiry_date": "2024-01-01T00:00:00",
+      "days_expired": 14
+    }
+  ]
 }
 ```
 
-### Mitigate Risk
-```bash
-POST /api/risks/123/mitigate
+---
+
+### Enforce Expiry (Reopen Expired Risks)
+```http
+POST /risks/enforce/expiry
+```
+
+**What it does:**
+- Finds all risks with `status="accepted"` and `expiry_date < now()`
+- Changes status from "accepted" to "open"
+- Does NOT affect control scores
+
+**Returns:**
+```json
 {
-  "mitigation_plan": "Implement MFA\nDeploy IDS\nTraining",
-  "mitigation_owner": "Security Team",
-  "mitigation_target_date": "2026-06-30T00:00:00",
-  "residual_risk_score": 4
+  "message": "Reopened 3 expired risk acceptances",
+  "risks_reopened": 3,
+  "guarantee": "Control scores unaffected by expiry enforcement"
 }
 ```
 
-### Mark Reviewed
+---
+
+### Mark Risk as Reviewed
+```http
+POST /risks/{risk_id}/review
+Content-Type: application/json
+
+{
+  "review_notes": "Reviewed risk - still acceptable",
+  "review_cadence_days": 90  # Next review in 90 days
+}
+```
+
+**Returns:**
+```json
+{
+  "id": 3,
+  "last_reviewed": "2024-01-15T10:00:00",
+  "next_review_due": "2024-04-15T10:00:00",
+  "review_notes": "Reviewed risk - still acceptable"
+}
+```
+
+**Sets:**
+- `last_reviewed` = current timestamp
+- `next_review_due` = last_reviewed + cadence_days
+
+---
+
+### Check Review Cadence (Find Overdue)
+```http
+GET /risks/check/review-cadence
+```
+
+**Returns:**
+```json
+{
+  "total_accepted_risks": 10,
+  "with_review_schedule": 8,
+  "overdue_count": 2,
+  "overdue_risks": [
+    {
+      "risk_id": 5,
+      "control_id": "ID.AM-1",
+      "next_review_due": "2024-01-01T00:00:00",
+      "days_overdue": 14,
+      "risk_description": "Incomplete asset inventory"
+    }
+  ]
+}
+```
+
+---
+
+### Verify Score Isolation
+```http
+GET /risks/verify/score-isolation
+```
+
+**Returns:**
+```json
+{
+  "total_risks": 15,
+  "total_scores": 50,
+  "accepted_risks_count": 5,
+  "sample_accepted_risks": [
+    {
+      "risk_id": 3,
+      "risk_status": "accepted",
+      "control_id": "ID.AM-1",
+      "control_score": 0.66,
+      "score_method": "Deterministic: 2 validated + 1 partial",
+      "score_rationale": "Score based on validated evidence only"
+    }
+  ],
+  "guarantee_verified": true,
+  "explanation": "Risk acceptance and treatment decisions exist independently in the risk register. Control scores are calculated exclusively from validated evidence.",
+  "proof": "Scores are calculated by ScoringService._determine_score() which only examines Evidence table, never Risk table"
+}
+```
+
+---
+
+## 🔒 Score Isolation Guarantee
+
+### What It Means
+**Risk operations NEVER affect control scores.**
+
+### How It Works
+1. **Scores** are calculated by `ScoringService._determine_score()`
+2. **Scoring logic** only examines the `Evidence` table
+3. **Risk register** operates on the `Risk` table
+4. **No code path** exists where risk operations modify scores
+
+### Proof Points
+- ✅ Accepting a risk does not change the control's score
+- ✅ Reviewing a risk does not change the control's score
+- ✅ Enforcing expiry does not change any control scores
+- ✅ Risk generation does not change any control scores
+
+### Verification
 ```bash
-POST /api/risks/123/review?review_notes=No changes needed
+# Get control score
+GET /controls/ID.AM-1
+# Note the score: 0.66
+
+# Accept a risk for this control
+POST /risks/3/accept
+{
+  "treatment": "accept",
+  "justification": "Acceptable risk",
+  "expiry_date": "2024-12-31T23:59:59"
+}
+
+# Check control score again
+GET /controls/ID.AM-1
+# Score is still: 0.66 ✅
 ```
 
 ---
 
-## 💡 Pro Tips
+## 📊 Typical Workflows
 
-### Risk Assessment
-- **Be specific**: "VPN lacks MFA" not "Security issue"
-- **Quantify when possible**: Use historical incident data
-- **Consider business context**: Different risk appetites per org
-- **Document assumptions**: Note in risk statement
-
-### Risk Treatment
-- **Accept**: Requires senior approval + compensating controls
-- **Mitigate**: Link to action items for tracking
-- **Transfer**: Document insurance policies or contracts
-- **Avoid**: Rare - usually business impact too high
-
-### Heat Map Interpretation
-- **Top-right corner** (very_high likelihood + critical impact): Crisis zone
-- **Bottom-left corner** (low likelihood + low impact): Acceptable
-- **Clustering**: Many risks in one area = systemic issue
-
-### Review Frequency
-- **Critical risks**: Monthly
-- **High risks**: Quarterly
-- **Medium risks**: Semi-annually
-- **Low risks**: Annually
-
----
-
-## 🔍 Troubleshooting
-
-### Issue: No risks showing
-**Solution**: 
-1. Click "Generate from Gaps"
-2. Or create manually with "New Risk"
-3. Check filters aren't too restrictive
-
-### Issue: Heat map all zeros
-**Solution**: 
-1. Create/generate risks first
-2. Ensure likelihood/impact values are valid
-3. Refresh page
-
-### Issue: Can't accept risk
-**Solution**: Must provide:
-- acceptance_approver
-- acceptance_expiry_date
-
-### Issue: Risk score wrong
-**Solution**: Update likelihood or impact to trigger recalculation
-
----
-
-## 📊 Dashboard Metrics
-
-### Summary Stats
-- **Total risks**
-- **By risk level** (critical/high/medium/low)
-- **By status** (open/under_review/accepted/mitigated/closed)
-- **By treatment** (accept/mitigate/transfer/avoid)
-- **Due for review**
-- **Average risk score**
-
-### Heat Map
-- Visual matrix: Likelihood × Impact
-- Color-coded by count
-- Quick pattern identification
-
-### Top Risks Widget
-- Top 5 highest-scoring risks
-- With control info and treatment
-- Prioritization aid
-
----
-
-## 🚀 Best Practices
-
-### During Assessment
-✅ Generate from gaps automatically  
-✅ Review control scores < 0.66  
-✅ Assess business impact, not just technical  
-✅ Involve business stakeholders  
-
-### During Treatment
-✅ Document rationale clearly  
-✅ Get appropriate approvals  
-✅ Set realistic target dates  
-✅ Estimate residual risk  
-
-### During Review
-✅ Follow review frequency  
-✅ Update parameters if changed  
-✅ Check mitigation progress  
-✅ Renew acceptances before expiry  
-
----
-
-## 📚 Related Pages
-
-- **Gap Analysis** (`/gaps`): Identify gaps to assess
-- **Actions** (`/actions`): Track mitigation tasks
-- **Dashboard** (`/`): Overall compliance view
-- **Controls** (`/controls`): View control details
-
----
-
-## 📈 Success Metrics
-
-### Good Risk Management
-- All critical/high gaps have risks assessed
-- Risks reviewed on schedule (due count = 0)
-- Mitigation plans have owners and dates
-- Heat map shows downward trend over time
-- No expired risk acceptances
-
-### Warning Signs
-- Many critical risks (>5)
-- Heat map concentrated top-right
-- Many overdue reviews
-- No mitigation plans for high risks
-- Acceptances without compensating controls
-
----
-
-## 🎯 Quick Filters
-
-### Show Only Critical Risks
+### Workflow 1: Accept Risk with Expiry
 ```
-Status: all
-Treatment: all
-Category: all
-Min Risk Score: 20
+1. Identify open risk → GET /risks
+2. Accept risk → POST /risks/{id}/accept
+   - Provide expiry_date (required)
+   - Provide justification
+3. Verify score unchanged → GET /controls/{control_id}
 ```
 
-### Show Risks Needing Action
+### Workflow 2: Review Accepted Risk
 ```
-Status: open, under_review
-Treatment: all
-Category: all
-Min Risk Score: 10
+1. Get accepted risks → GET /risks?status=accepted
+2. Review risk → POST /risks/{id}/review
+   - Add review_notes
+   - Set review_cadence_days (e.g., 90)
+3. Verify next_review_due is set
 ```
 
-### Show Accepted Risks
+### Workflow 3: Enforce Expiry (Scheduled Job)
 ```
-Status: accepted
-Treatment: accept
-Category: all
-Min Risk Score: 0
+1. Check expired acceptances → GET /risks/expired/acceptances
+2. Review expired list
+3. Enforce expiry → POST /risks/enforce/expiry
+4. Verify risks reopened
+```
+
+### Workflow 4: Monitor Overdue Reviews
+```
+1. Check review cadence → GET /risks/check/review-cadence
+2. Review overdue list
+3. For each overdue risk:
+   - Review the risk
+   - Mark as reviewed → POST /risks/{id}/review
 ```
 
 ---
 
-**Remember**: Risk management is continuous. Review quarterly, update promptly, and always document decisions.
+## 🧪 Testing
 
-**Full docs**: [EPIC_7_COMPLETION.md](EPIC_7_COMPLETION.md)  
-**API docs**: http://localhost:8000/docs  
-**Frontend**: http://localhost:5174/#/risks
+### Test File
+`backend/test_epic7_manual.py`
+
+### Run Tests
+```powershell
+# Terminal 1: Start backend
+cd c:\nist-csf-tracker\backend
+..\\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+
+# Terminal 2: Run tests
+cd c:\nist-csf-tracker\backend
+..\\.venv\Scripts\python.exe test_epic7_manual.py
+```
+
+### Test Coverage
+- ✅ Expiry date required
+- ✅ Past dates rejected
+- ✅ Future dates accepted
+- ✅ Expired risks listed
+- ✅ Expiry enforcement works
+- ✅ Review tracking works
+- ✅ Overdue detection works
+- ✅ Score isolation verified
+- ✅ End-to-end isolation test
+
+---
+
+## 🚨 Common Issues
+
+### Issue: "expiry_date is required"
+**Solution:** Always provide `expiry_date` when accepting risks.
+```json
+{
+  "treatment": "accept",
+  "justification": "...",
+  "expiry_date": "2024-12-31T23:59:59"  ← Add this
+}
+```
+
+### Issue: "Expiry date must be in the future"
+**Solution:** Use a date/time after now.
+```python
+from datetime import datetime, timedelta
+expiry = (datetime.now() + timedelta(days=90)).isoformat()
+```
+
+### Issue: No risks to accept
+**Solution:** Generate risks from gaps first.
+```http
+POST /risks/generate/from-gaps
+```
+
+### Issue: Tests failing with connection refused
+**Solution:** Ensure backend server is running.
+```powershell
+cd c:\nist-csf-tracker\backend
+..\\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+---
+
+## 📈 Score Isolation Explained
+
+### Why It Matters
+Risk acceptance is a **business decision**, not a technical control implementation. Scores reflect **actual technical controls**, not risk appetite.
+
+### Example
+```
+Control: ID.AM-1 (Asset inventory)
+Score: 0.33 (1 validated evidence)
+
+User accepts the risk of incomplete inventory:
+POST /risks/3/accept
+
+Control score remains: 0.33 ✅
+
+Why? Because:
+- The control is still only 33% implemented
+- Risk acceptance doesn't change implementation
+- Score reflects reality, not acceptance
+```
+
+### Benefits
+1. **Honest scoring** - Scores reflect true control state
+2. **Separation of concerns** - Risk decisions don't corrupt technical assessments
+3. **Audit trail** - Risk register separate from control implementation
+4. **Compliance** - Can show both control state AND risk treatment
+
+---
+
+## 🎓 Key Concepts
+
+### Expiry Date
+- **Required** for all risk acceptances
+- **Must be future date** (validated)
+- **Auto-enforcement** available via endpoint
+- **Business rule:** No indefinite risk acceptance
+
+### Review Cadence
+- **Customizable** per risk (e.g., 90, 180 days)
+- **Tracks** last_reviewed and next_review_due
+- **Detects** overdue reviews automatically
+- **Business rule:** Accepted risks must be reviewed regularly
+
+### Score Isolation
+- **Architectural** guarantee (not just documented)
+- **Proven** by code structure and verification endpoint
+- **Tested** in end-to-end tests
+- **Business rule:** Scores reflect reality, not risk appetite
+
+---
+
+## 📖 Related Documentation
+- Full details: `EPIC_7_COMPLETION_UPDATED.md`
+- Test suite: `backend/test_epic7_manual.py`
+- Risk API: `backend/app/api/risks.py`
+- Scoring service: `backend/app/services/scoring_service.py`
